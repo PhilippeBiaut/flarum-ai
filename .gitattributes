@@ -1,0 +1,9 @@
+# Normalise line endings: the repository always stores LF, whatever the OS the
+# files were written on. Without this, install.sh checked out from a Windows
+# working copy carries CRLF and dies on Linux with "bad interpreter".
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.ps1 text eol=crlf
+
+js/dist/* linguist-generated=true
