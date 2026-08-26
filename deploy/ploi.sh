@@ -15,8 +15,15 @@ echo "🚀 Deploying..."
 # pbiaut/flarum-ai-seeder is not published on Packagist, and `composer require`
 # only ever looks at Packagist. Without this entry Composer reports
 # "could not be found in any version", whatever the repository's visibility.
+#
+# Type `git`, not `vcs`, on purpose. `vcs` lets Composer pick its GitHub driver,
+# which talks to the GitHub API first - and when that fails (no OAuth token, or
+# the unauthenticated IP quota is spent) it falls back by *generating an SSH
+# URL* of its own, giving "git@github.com: Permission denied (publickey)" on a
+# server that has no deploy key. The plain git driver just clones the HTTPS URL
+# it was given, which needs no credentials at all for a public repository.
 
-composer config repositories.flarum-ai vcs https://github.com/PhilippeBiaut/flarum-ai.git
+composer config repositories.flarum-ai git https://github.com/PhilippeBiaut/flarum-ai.git
 
 # --- Install or update -------------------------------------------------------
 #

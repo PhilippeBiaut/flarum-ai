@@ -50,8 +50,14 @@ Packagist — so Composer has to be pointed at the repository first. From the fo
 root:
 
 ```bash
-composer config repositories.flarum-ai vcs https://github.com/PhilippeBiaut/flarum-ai.git
+composer config repositories.flarum-ai git https://github.com/PhilippeBiaut/flarum-ai.git
 ```
+
+Type `git` rather than `vcs` on purpose: `vcs` hands the repository to Composer's
+GitHub driver, which queries the GitHub API and, when that fails for want of a
+token, falls back to an SSH URL it generates itself — failing with
+`git@github.com: Permission denied (publickey)` on any server without a deploy
+key. The plain git driver clones the HTTPS URL as given, no credentials needed.
 
 ```bash
 composer require pbiaut/flarum-ai-seeder:dev-main
