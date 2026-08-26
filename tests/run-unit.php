@@ -820,6 +820,61 @@ $t->test('some members stop coming, and never post afterwards', function (Runner
     );
 });
 
+// --------------------------------------------------------------------- locale
+
+$t->test('every locale value is quoted, and the catalogues match', function (Runner $t): void {
+    // A value containing ": " is a YAML mapping unless it is quoted, and Flarum
+    // refuses to boot at all when a locale file fails to parse. Requiring every
+    // value to be quoted turns that whole class of outage into a failing test.
+    $catalogues = [];
+
+    foreach (['en', 'fr'] as $language) {
+        $path = __DIR__.'/../locale/'.$language.'.yml';
+        $t->ok(is_file($path), "locale/$language.yml exists");
+
+        $keys = [];
+        $stack = [];
+        $unquoted = [];
+
+        foreach (file($path, FILE_IGNORE_NEW_LINES) as $number => $line) {
+            if (trim($line) === '' || str_starts_with(trim($line), '#')) {
+                continue;
+            }
+
+            $indent = strlen($line) - strlen(ltrim($line, ' '));
+            $stack = array_slice($stack, 0, intdiv($indent, 2));
+
+            [$key, $value] = array_pad(explode(':', trim($line), 2), 2, '');
+            $value = trim($value);
+
+            if ($value === '') {
+                $stack[] = $key;
+                continue;
+            }
+
+            $quoted = (str_starts_with($value, '"') && str_ends_with($value, '"'))
+                || (str_starts_with($value, "'") && str_ends_with($value, "'"));
+
+            if (! $quoted) {
+                $unquoted[] = $language.'.yml line '.($number + 1).': '.$key;
+            }
+
+            $keys[] = implode('.', array_merge($stack, [$key]));
+        }
+
+        $t->same([], array_slice($unquoted, 0, 5), "every value in $language.yml is quoted");
+
+        $catalogues[$language] = $keys;
+        $t->ok(count($keys) > 100, "$language.yml carries a full catalogue (".count($keys).' keys)');
+    }
+
+    $missingFr = array_values(array_diff($catalogues['en'], $catalogues['fr']));
+    $missingEn = array_values(array_diff($catalogues['fr'], $catalogues['en']));
+
+    $t->same([], array_slice($missingFr, 0, 5), 'nothing is missing from fr.yml');
+    $t->same([], array_slice($missingEn, 0, 5), 'nothing is missing from en.yml');
+});
+
 $t->test('Rng is reproducible and bounded', function (Runner $t): void {
     $a = new Rng(99);
     $b = new Rng(99);

@@ -1,112 +1,112 @@
 pbiaut-ai-seeder:
   admin:
     sections:
-      connection: Connexion OpenAI
-      connection_help: La clé reste sur le serveur et n'est transmise qu'aux administrateurs.
-      context: De quoi parle ce forum
-      context_help: Tout ce qui est saisi ici part dans les prompts. Plus c'est précis, moins le contenu généré est générique.
-      sample: Essayer sur un seul fil
-      sample_help: Génère un fil complet et l'affiche ici. Rien n'est écrit sur le forum.
-      volumes: Volumes et période
-      volumes_help: Combien créer, sur quelle période, et selon quel rythme d'activité.
-      preview: Plan jour par jour
-      preview_help: Calculé localement. Rien n'a été envoyé à OpenAI et rien n'a encore été créé.
-      run: Génération en cours
-      run_help: La génération tourne en arrière-plan, par petits paquets d'appels API.
-      history: Historique
-      history_help: Chaque génération peut être rouverte, et tout ce qu'elle a créé supprimé en un clic.
-      retag: Étiqueter les discussions existantes
-      retag_help: Classe les fils déjà présents sur le forum dans la liste d'étiquettes ci-dessus. Rien n'est écrit, modifié ni supprimé : seules des étiquettes sont ajoutées.
+      connection: "Connexion OpenAI"
+      connection_help: "La clé reste sur le serveur et n'est transmise qu'aux administrateurs."
+      context: "De quoi parle ce forum"
+      context_help: "Tout ce qui est saisi ici part dans les prompts. Plus c'est précis, moins le contenu généré est générique."
+      sample: "Essayer sur un seul fil"
+      sample_help: "Génère un fil complet et l'affiche ici. Rien n'est écrit sur le forum."
+      volumes: "Volumes et période"
+      volumes_help: "Combien créer, sur quelle période, et selon quel rythme d'activité."
+      preview: "Plan jour par jour"
+      preview_help: "Calculé localement. Rien n'a été envoyé à OpenAI et rien n'a encore été créé."
+      run: "Génération en cours"
+      run_help: "La génération tourne en arrière-plan, par petits paquets d'appels API."
+      history: "Historique"
+      history_help: "Chaque génération peut être rouverte, et tout ce qu'elle a créé supprimé en un clic."
+      retag: "Étiqueter les discussions existantes"
+      retag_help: "Classe les fils déjà présents sur le forum dans la liste d'étiquettes ci-dessus. Rien n'est écrit, modifié ni supprimé : seules des étiquettes sont ajoutées."
 
     settings:
-      api_key_label: Clé API OpenAI
-      api_key_help: À créer sur platform.openai.com. Mettez-lui un plafond de dépense bas pendant vos tests.
-      base_url_label: URL de base de l'API
-      base_url_help: Laissez vide pour OpenAI. À changer pour Azure OpenAI, OpenRouter, LiteLLM ou un serveur local.
-      calls_per_run: Appels API par job de file
-      calls_per_request: Appels API par tranche pilotée par le navigateur
-      requests_per_minute: Requêtes par minute max (0 = illimité)
-      max_tokens: Tokens max par réponse
-      temperature: Température
-      email_domain: Domaine e-mail des membres générés
-      timezone: Fuseau horaire du calendrier
-      price_input: Prix par 1M de tokens en entrée
-      price_output: Prix par 1M de tokens en sortie
-      currency: Devise
+      api_key_label: "Clé API OpenAI"
+      api_key_help: "À créer sur platform.openai.com. Mettez-lui un plafond de dépense bas pendant vos tests."
+      base_url_label: "URL de base de l'API"
+      base_url_help: "Laissez vide pour OpenAI. À changer pour Azure OpenAI, OpenRouter, LiteLLM ou un serveur local."
+      calls_per_run: "Appels API par job de file"
+      calls_per_request: "Appels API par tranche pilotée par le navigateur"
+      requests_per_minute: "Requêtes par minute max (0 = illimité)"
+      max_tokens: "Tokens max par réponse"
+      temperature: "Température"
+      email_domain: "Domaine e-mail des membres générés"
+      timezone: "Fuseau horaire du calendrier"
+      price_input: "Prix par 1M de tokens en entrée"
+      price_output: "Prix par 1M de tokens en sortie"
+      currency: "Devise"
 
     connection:
-      test: Tester la connexion
+      test: "Tester la connexion"
       ok: "Connexion établie. {count} modèles utilisables trouvés."
 
     form:
-      model: Modèle
-      model_help: Récupéré en direct depuis l'API, la liste correspond donc toujours à ce que votre clé peut réellement utiliser.
-      language: Langue de rédaction
-      tone: Ton général
-      theme: Sujets abordés par les membres
-      theme_help: Par exemple « auto-hébergement, serveurs perso et NAS, pour des bricoleurs passionnés ».
-      audience: Qui sont les membres
+      model: "Modèle"
+      model_help: "Récupéré en direct depuis l'API, la liste correspond donc toujours à ce que votre clé peut réellement utiliser."
+      language: "Langue de rédaction"
+      tone: "Ton général"
+      theme: "Sujets abordés par les membres"
+      theme_help: "Par exemple « auto-hébergement, serveurs perso et NAS, pour des bricoleurs passionnés »."
+      audience: "Qui sont les membres"
       tags: "Étiquettes à utiliser (une par ligne)"
       tags_help: "Un chemin par ligne. Utilisez \" > \" pour une sous-étiquette : Voyage > Voyages France. Ce qui existe déjà est réutilisé, ce qui manque est créé. Ajoutez « | 3 » en fin de ligne pour rendre cette étiquette trois fois plus probable. Flarum n'accepte que deux niveaux."
       tags_placeholder: "Voyage > Voyages France\nVoyage > Voyages Asie | 2\nCuisine\n"
       tags_load: "Charger les étiquettes existantes du forum"
-      users: Membres
-      discussions: Discussions
-      replies: Réponses (total)
-      date_start: Début de la période
-      date_end: Fin de la période
-      distribution: Répartition
-      distribution_organic: Organique (rythme de semaine et montée en charge)
-      distribution_uniform: Uniforme (même volume chaque jour)
-      distribution_random: Aléatoire
-      hour_start: Heure de publication la plus tôt
-      hour_end: Heure de publication la plus tard
-      replies_min: Réponses min par discussion
-      replies_max: Réponses max par discussion
-      reply_window: Fenêtre de réponse (jours)
+      users: "Membres"
+      discussions: "Discussions"
+      replies: "Réponses (total)"
+      date_start: "Début de la période"
+      date_end: "Fin de la période"
+      distribution: "Répartition"
+      distribution_organic: "Organique (rythme de semaine et montée en charge)"
+      distribution_uniform: "Uniforme (même volume chaque jour)"
+      distribution_random: "Aléatoire"
+      hour_start: "Heure de publication la plus tôt"
+      hour_end: "Heure de publication la plus tard"
+      replies_min: "Réponses min par discussion"
+      replies_max: "Réponses max par discussion"
+      reply_window: "Fenêtre de réponse (jours)"
       dead_share: "Part de fils sans réponse (0-1)"
-      seed: Graine (vide = nouvelle)
-      compute_plan: Calculer le plan
-      compute_plan_help: Gratuit et instantané. Aucun appel à OpenAI.
-      start: Lancer la génération
+      seed: "Graine (vide = nouvelle)"
+      compute_plan: "Calculer le plan"
+      compute_plan_help: "Gratuit et instantané. Aucun appel à OpenAI."
+      start: "Lancer la génération"
       start_help: "Tourne en arrière-plan, environ {runs} job(s) de file."
       start_confirm: "Vous allez générer {count} messages avec environ {calls} appels OpenAI, facturés sur votre compte. Continuer ?"
 
     retag:
-      scope: Quelles discussions
-      scope_untagged: Uniquement celles sans aucune étiquette
-      scope_all: Toutes, étiquetées ou non
-      scope_all_warning: Cela peut ajouter des étiquettes à des discussions déjà classées à la main. Les étiquettes existantes ne sont jamais retirées, et l'annulation ne défait que ce que cette exécution a ajouté.
+      scope: "Quelles discussions"
+      scope_untagged: "Uniquement celles sans aucune étiquette"
+      scope_all: "Toutes, étiquetées ou non"
+      scope_all_warning: "Cela peut ajouter des étiquettes à des discussions déjà classées à la main. Les étiquettes existantes ne sont jamais retirées, et l'annulation ne défait que ce que cette exécution a ajouté."
       date_start: "Créées après (facultatif)"
       date_end: "Créées avant (facultatif)"
       limit: "Limite (0 = sans limite)"
-      count: Compter les discussions
+      count: "Compter les discussions"
       matched: "{count} discussion(s) correspondent."
       estimate: "Environ {calls} appel(s) API, coût : {cost}."
-      start: Les étiqueter
+      start: "Les étiqueter"
       confirm: "Vous allez classer {count} discussions existantes avec environ {calls} appels OpenAI. Des étiquettes seront ajoutées à de vrais fils. Continuer ?"
 
     sample:
-      generate: Générer un fil d'exemple
-      help: Environ quatre appels API. Le moyen le moins cher de vérifier le ton et la langue avant de lancer une génération complète.
+      generate: "Générer un fil d'exemple"
+      help: "Environ quatre appels API. Le moyen le moins cher de vérifier le ton et la langue avant de lancer une génération complète."
       answers: "répond à [{n}]"
-      words: mots
-      rejected: Rejetée comme doublon ou inutilisable ; une vraie génération la régénérerait.
+      words: "mots"
+      rejected: "Rejetée comme doublon ou inutilisable ; une vraie génération la régénérerait."
 
     preview:
-      members: Membres
-      discussions: Discussions
-      replies: Réponses
-      days: Jours
-      per_day: Discussions / réponses par jour
-      per_thread: Réponses par discussion
-      api_calls: Appels API
-      cost: Coût estimé
-      cost_unknown: renseignez les prix
+      members: "Membres"
+      discussions: "Discussions"
+      replies: "Réponses"
+      days: "Jours"
+      per_day: "Discussions / réponses par jour"
+      per_thread: "Réponses par discussion"
+      api_calls: "Appels API"
+      cost: "Coût estimé"
+      cost_unknown: "renseignez les prix"
       show_table: "Afficher les {count} jours actifs"
-      date: Date
-      signups: Inscriptions
-      no_prices: Renseignez les prix des tokens dans la section connexion pour obtenir une estimation de coût.
+      date: "Date"
+      signups: "Inscriptions"
+      no_prices: "Renseignez les prix des tokens dans la section connexion pour obtenir une estimation de coût."
 
     run:
       title: "Génération n°{id}"
@@ -115,34 +115,34 @@ pbiaut-ai-seeder:
       replies: "Réponses : {done} / {total}"
       usage: "{calls} appels API, {tokens} tokens"
       failed: "{count} élément(s) en échec"
-      pause: Mettre en pause
-      resume: Reprendre
-      cancel: Annuler
-      retry: Relancer les éléments en échec
-      revert: Supprimer tout ce que cette génération a créé
+      pause: "Mettre en pause"
+      resume: "Reprendre"
+      cancel: "Annuler"
+      retry: "Relancer les éléments en échec"
+      revert: "Supprimer tout ce que cette génération a créé"
       revert_confirm: "Supprimer définitivement les {count} membres, discussions et messages créés par la génération n°{id} ?"
-      failure_details: Détail des échecs
-      waiting_for_worker: En file d'attente. Si rien ne se passe, aucun worker de file n'est lancé - voir le README de l'extension.
-      no_worker: Aucun worker de file sur ce forum : c'est cette page qui exécute la génération. Gardez l'onglet ouvert jusqu'à la fin ; vous pouvez le fermer et revenir, la génération reprend où elle s'est arrêtée.
-      driving: Exécution depuis cette page, tranche par tranche. Gardez l'onglet ouvert.
-      continue: Poursuivre la génération
-      stop_driving: Arrêter ici
+      failure_details: "Détail des échecs"
+      waiting_for_worker: "En file d'attente. Si rien ne se passe, aucun worker de file n'est lancé - voir le README de l'extension."
+      no_worker: "Aucun worker de file sur ce forum : c'est cette page qui exécute la génération. Gardez l'onglet ouvert jusqu'à la fin ; vous pouvez le fermer et revenir, la génération reprend où elle s'est arrêtée."
+      driving: "Exécution depuis cette page, tranche par tranche. Gardez l'onglet ouvert."
+      continue: "Poursuivre la génération"
+      stop_driving: "Arrêter ici"
       log: "Journal ({count} lignes)"
 
     status:
-      planned: Planifiée
-      queued: En file
-      running: En cours
-      paused: En pause
-      completed: Terminée
-      failed: En échec
-      cancelled: Annulée
-      reverting: Suppression en cours
-      reverted: Supprimée
+      planned: "Planifiée"
+      queued: "En file"
+      running: "En cours"
+      paused: "En pause"
+      completed: "Terminée"
+      failed: "En échec"
+      cancelled: "Annulée"
+      reverting: "Suppression en cours"
+      reverted: "Supprimée"
 
     history:
-      status: Statut
-      period: Période
-      created: Membres / discussions / réponses
-      tokens: Tokens
-      open: Ouvrir
+      status: "Statut"
+      period: "Période"
+      created: "Membres / discussions / réponses"
+      tokens: "Tokens"
+      open: "Ouvrir"

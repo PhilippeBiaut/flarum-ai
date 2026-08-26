@@ -1,112 +1,112 @@
 pbiaut-ai-seeder:
   admin:
     sections:
-      connection: OpenAI connection
-      connection_help: The key stays on the server and is never sent to the browser of anyone but an administrator.
-      context: What this forum is about
-      context_help: Everything here goes into the prompts. The more precise it is, the less generic the generated content feels.
-      sample: Try it on one thread first
-      sample_help: Generates a single complete thread and shows it here. Nothing is written to the forum.
-      volumes: Volumes and period
-      volumes_help: How much to create, over which period, and how the activity should be shaped.
-      preview: Day-by-day plan
-      preview_help: Computed locally. Nothing has been sent to OpenAI and nothing has been created yet.
-      run: Current run
-      run_help: Generation happens in the background, a few API calls at a time.
-      history: History
-      history_help: Every run can be reopened, and everything it created can be removed in one click.
-      retag: Tag existing discussions
-      retag_help: Sorts threads already on the forum into the tag list above. Nothing is written, edited or deleted: only tags are added.
+      connection: "OpenAI connection"
+      connection_help: "The key stays on the server and is never sent to the browser of anyone but an administrator."
+      context: "What this forum is about"
+      context_help: "Everything here goes into the prompts. The more precise it is, the less generic the generated content feels."
+      sample: "Try it on one thread first"
+      sample_help: "Generates a single complete thread and shows it here. Nothing is written to the forum."
+      volumes: "Volumes and period"
+      volumes_help: "How much to create, over which period, and how the activity should be shaped."
+      preview: "Day-by-day plan"
+      preview_help: "Computed locally. Nothing has been sent to OpenAI and nothing has been created yet."
+      run: "Current run"
+      run_help: "Generation happens in the background, a few API calls at a time."
+      history: "History"
+      history_help: "Every run can be reopened, and everything it created can be removed in one click."
+      retag: "Tag existing discussions"
+      retag_help: "Sorts threads already on the forum into the tag list above. Nothing is written, edited or deleted: only tags are added."
 
     settings:
-      api_key_label: OpenAI API key
-      api_key_help: Create one at platform.openai.com. Give it a low spending cap while you are testing.
-      base_url_label: API base URL
-      base_url_help: Leave empty for OpenAI. Point it elsewhere for Azure OpenAI, OpenRouter, LiteLLM or a local server.
-      calls_per_run: API calls per queue job
-      calls_per_request: API calls per browser-driven slice
-      requests_per_minute: Max requests per minute (0 = no limit)
-      max_tokens: Max tokens per response
-      temperature: Temperature
-      email_domain: Email domain for generated members
-      timezone: Timezone used for the calendar
-      price_input: Price per 1M input tokens
-      price_output: Price per 1M output tokens
-      currency: Currency
+      api_key_label: "OpenAI API key"
+      api_key_help: "Create one at platform.openai.com. Give it a low spending cap while you are testing."
+      base_url_label: "API base URL"
+      base_url_help: "Leave empty for OpenAI. Point it elsewhere for Azure OpenAI, OpenRouter, LiteLLM or a local server."
+      calls_per_run: "API calls per queue job"
+      calls_per_request: "API calls per browser-driven slice"
+      requests_per_minute: "Max requests per minute (0 = no limit)"
+      max_tokens: "Max tokens per response"
+      temperature: "Temperature"
+      email_domain: "Email domain for generated members"
+      timezone: "Timezone used for the calendar"
+      price_input: "Price per 1M input tokens"
+      price_output: "Price per 1M output tokens"
+      currency: "Currency"
 
     connection:
-      test: Test the connection
+      test: "Test the connection"
       ok: "Connected. {count} usable models found."
 
     form:
-      model: Model
-      model_help: Fetched live from the endpoint above, so the list always matches what your key can actually use.
-      language: Language to write in
-      tone: Overall tone
-      theme: What members talk about
-      theme_help: For example "self-hosting, home servers and NAS, for hobbyists who like tinkering".
-      audience: Who the members are
+      model: "Model"
+      model_help: "Fetched live from the endpoint above, so the list always matches what your key can actually use."
+      language: "Language to write in"
+      tone: "Overall tone"
+      theme: "What members talk about"
+      theme_help: "For example \"self-hosting, home servers and NAS, for hobbyists who like tinkering\"."
+      audience: "Who the members are"
       tags: "Tags to use (one path per line)"
       tags_help: "One path per line. Use \" > \" for a sub-tag: Voyage > Voyages France. Anything that already exists is reused, anything missing is created. Add \"| 3\" at the end of a line to make that tag three times more likely. Flarum tags go two levels deep at most."
       tags_placeholder: "Voyage > Voyages France\nVoyage > Voyages Asie | 2\nCuisine\n"
       tags_load: "Load the forum's existing tags"
-      users: Members
-      discussions: Discussions
-      replies: Replies (total)
-      date_start: Period start
-      date_end: Period end
-      distribution: Distribution
-      distribution_organic: Organic (weekday rhythm and growth)
-      distribution_uniform: Uniform (same volume every day)
-      distribution_random: Random
-      hour_start: Earliest posting hour
-      hour_end: Latest posting hour
-      replies_min: Min replies per discussion
-      replies_max: Max replies per discussion
-      reply_window: Reply window (days)
+      users: "Members"
+      discussions: "Discussions"
+      replies: "Replies (total)"
+      date_start: "Period start"
+      date_end: "Period end"
+      distribution: "Distribution"
+      distribution_organic: "Organic (weekday rhythm and growth)"
+      distribution_uniform: "Uniform (same volume every day)"
+      distribution_random: "Random"
+      hour_start: "Earliest posting hour"
+      hour_end: "Latest posting hour"
+      replies_min: "Min replies per discussion"
+      replies_max: "Max replies per discussion"
+      reply_window: "Reply window (days)"
       dead_share: "Share of threads with no reply (0-1)"
-      seed: Seed (leave empty for a new one)
-      compute_plan: Compute the plan
-      compute_plan_help: Free and instant. No OpenAI call.
-      start: Generate
+      seed: "Seed (leave empty for a new one)"
+      compute_plan: "Compute the plan"
+      compute_plan_help: "Free and instant. No OpenAI call."
+      start: "Generate"
       start_help: "Runs in the background, roughly {runs} queue job(s)."
       start_confirm: "About to generate {count} posts with around {calls} OpenAI calls. This will be billed to your account. Continue?"
 
     retag:
-      scope: Which discussions
-      scope_untagged: Only those with no tag at all
-      scope_all: All of them, tagged or not
-      scope_all_warning: This may add tags to discussions somebody already categorised by hand. Tags already present are never removed, and a rollback undoes only what this run added.
+      scope: "Which discussions"
+      scope_untagged: "Only those with no tag at all"
+      scope_all: "All of them, tagged or not"
+      scope_all_warning: "This may add tags to discussions somebody already categorised by hand. Tags already present are never removed, and a rollback undoes only what this run added."
       date_start: "Created after (optional)"
       date_end: "Created before (optional)"
       limit: "Limit (0 = no limit)"
-      count: Count the discussions
+      count: "Count the discussions"
       matched: "{count} discussion(s) match."
       estimate: "About {calls} API call(s), cost: {cost}."
-      start: Tag them
+      start: "Tag them"
       confirm: "About to classify {count} existing discussions with around {calls} OpenAI calls. Tags will be added to real threads. Continue?"
 
     sample:
-      generate: Generate one sample thread
-      help: About four API calls. The cheapest way to check the tone and the language before committing to a full run.
+      generate: "Generate one sample thread"
+      help: "About four API calls. The cheapest way to check the tone and the language before committing to a full run."
       answers: "answers [{n}]"
-      words: words
-      rejected: Rejected as a duplicate or unusable; a real run would regenerate it.
+      words: "words"
+      rejected: "Rejected as a duplicate or unusable; a real run would regenerate it."
 
     preview:
-      members: Members
-      discussions: Discussions
-      replies: Replies
-      days: Days
-      per_day: Discussions / replies per day
-      per_thread: Replies per discussion
-      api_calls: API calls
-      cost: Estimated cost
-      cost_unknown: set the prices
+      members: "Members"
+      discussions: "Discussions"
+      replies: "Replies"
+      days: "Days"
+      per_day: "Discussions / replies per day"
+      per_thread: "Replies per discussion"
+      api_calls: "API calls"
+      cost: "Estimated cost"
+      cost_unknown: "set the prices"
       show_table: "Show the {count} active days"
-      date: Date
-      signups: Signups
-      no_prices: Fill in the token prices in the connection section to get a cost estimate.
+      date: "Date"
+      signups: "Signups"
+      no_prices: "Fill in the token prices in the connection section to get a cost estimate."
 
     run:
       title: "Run #{id}"
@@ -115,34 +115,34 @@ pbiaut-ai-seeder:
       replies: "Replies: {done} / {total}"
       usage: "{calls} API calls, {tokens} tokens"
       failed: "{count} item(s) failed"
-      pause: Pause
-      resume: Resume
-      cancel: Cancel
-      retry: Retry the failed items
-      revert: Delete everything this run created
+      pause: "Pause"
+      resume: "Resume"
+      cancel: "Cancel"
+      retry: "Retry the failed items"
+      revert: "Delete everything this run created"
       revert_confirm: "Permanently delete the {count} members, discussions and posts created by run #{id}?"
-      failure_details: Failure details
-      waiting_for_worker: Queued. If nothing happens, no queue worker is running - see the extension README.
-      no_worker: No queue worker on this forum, so this page runs the generation itself. Keep the tab open until it finishes; you can close it and come back, the run resumes where it stopped.
-      driving: Running from this page, one slice at a time. Keep the tab open.
-      continue: Continue the run
-      stop_driving: Stop here
+      failure_details: "Failure details"
+      waiting_for_worker: "Queued. If nothing happens, no queue worker is running - see the extension README."
+      no_worker: "No queue worker on this forum, so this page runs the generation itself. Keep the tab open until it finishes; you can close it and come back, the run resumes where it stopped."
+      driving: "Running from this page, one slice at a time. Keep the tab open."
+      continue: "Continue the run"
+      stop_driving: "Stop here"
       log: "Run log ({count} lines)"
 
     status:
-      planned: Planned
-      queued: Queued
-      running: Running
-      paused: Paused
-      completed: Completed
-      failed: Failed
-      cancelled: Cancelled
-      reverting: Reverting
-      reverted: Reverted
+      planned: "Planned"
+      queued: "Queued"
+      running: "Running"
+      paused: "Paused"
+      completed: "Completed"
+      failed: "Failed"
+      cancelled: "Cancelled"
+      reverting: "Reverting"
+      reverted: "Reverted"
 
     history:
-      status: Status
-      period: Period
-      created: Members / discussions / replies
-      tokens: Tokens
-      open: Open
+      status: "Status"
+      period: "Period"
+      created: "Members / discussions / replies"
+      tokens: "Tokens"
+      open: "Open"
