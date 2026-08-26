@@ -34,10 +34,14 @@ composer config prefer-stable true
 
 # --- Install or update -------------------------------------------------------
 
+# No --no-dev here on purpose: `composer require` does not accept it (only
+# `--update-no-dev`), and this forum currently installs its dev dependencies.
+# A deploy should not quietly change that.
+
 if composer show pbiaut/flarum-ai-seeder > /dev/null 2>&1; then
-    composer update pbiaut/flarum-ai-seeder --no-interaction --prefer-dist --no-dev --optimize-autoloader
+    composer update pbiaut/flarum-ai-seeder --no-interaction --prefer-dist --optimize-autoloader
 else
-    composer require pbiaut/flarum-ai-seeder:dev-main -W --no-interaction --prefer-dist --no-dev --optimize-autoloader
+    composer require pbiaut/flarum-ai-seeder:dev-main -W --no-interaction --prefer-dist --optimize-autoloader
 fi
 
 # --- Flarum ------------------------------------------------------------------
