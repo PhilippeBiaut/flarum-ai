@@ -116,19 +116,31 @@ class RevertRunner
     }
 
     /**
+     * Tags the batch actually attached, read back from the item payloads.
+     *
+     * Tags the run *created* are deliberately left in place: by the time a
+     * rollback happens a real member may have used one, and deleting it would
+     * strip the tag off their discussion too. Only the counts are corrected.
+     *
      * @return array<int, int>
      */
     protected function plannedTagIds(Batch $batch): array
     {
-        $tags = $batch->config['tags'] ?? [];
+        $ids = [];
 
-        if (! is_array($tags)) {
-            return [];
+        $rows = $batch->items()
+            ->where('type', Item::TYPE_DISCUSSION)
+            ->whereNotNull('payload')
+            ->get();
+
+        foreach ($rows as $item) {
+            foreach ((array) $item->get('tag_ids', []) as $id) {
+                if (is_numeric($id)) {
+                    $ids[(int) $id] = true;
+                }
+            }
         }
 
-        return array_values(array_filter(array_map(
-            fn ($tag) => is_array($tag) && isset($tag['id']) ? (int) $tag['id'] : null,
-            $tags
-        )));
+        return array_keys($ids);
     }
 }

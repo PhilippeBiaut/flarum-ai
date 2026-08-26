@@ -420,6 +420,79 @@ $t->test('impossible reply bounds raise a warning instead of silently lying', fu
     $t->ok($plan->warnings !== [], 'a warning is attached when the requested total cannot fit');
 });
 
+$t->test('tag paths are parsed, deduplicated and capped at two levels', function (Runner $t): void {
+    $c = config([
+        'tags' => "Voyage > Voyages France\n"
+            ."  Voyage   >   Voyages Asie  | 3\n"
+            ."Cuisine\n"
+            ."# une ligne commentee\n"
+            ."\n"
+            ."voyage > voyages france\n"          // doublon, casse differente
+            .'Sport > Cyclisme > Route > Cols',   // trop profond
+    ]);
+
+    $paths = array_column($c->tags, 'path');
+
+    $t->same(
+        ['Voyage > Voyages France', 'Voyage > Voyages Asie', 'Cuisine', 'Sport > Cols'],
+        $paths,
+        'paths are normalised, comments and duplicates dropped, depth capped'
+    );
+
+    $t->same(3.0, $c->tags[1]['weight'], 'the "| 3" suffix becomes a weight');
+    $t->same(1.0, $c->tags[0]['weight'], 'no suffix means weight 1');
+    $t->same('Voyages France', $c->tags[0]['name'], 'the leaf is kept as the display name');
+    $t->same('Cuisine', $c->tags[2]['name'], 'a single-level path is its own leaf');
+});
+
+$t->test('tag paths also accept the structured form', function (Runner $t): void {
+    $c = config(['tags' => [
+        ['path' => 'Voyage > Voyages France', 'weight' => 2],
+        ['name' => 'Cuisine'],
+    ]]);
+
+    $t->same(['Voyage > Voyages France', 'Cuisine'], array_column($c->tags, 'path'), 'objects work too');
+    $t->same(2.0, $c->tags[0]['weight'], 'weights survive');
+});
+
+$t->test('discussions get a tag path, weighted', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config([
+        'discussions' => 200,
+        'replies' => 0,
+        'tags' => "Voyage > Voyages France | 5\nCuisine | 1",
+    ]));
+
+    $counts = [];
+
+    foreach ($plan->discussions as $discussion) {
+        $t->ok($discussion['tag_path'] !== null, 'every discussion carries a tag path');
+        $counts[$discussion['tag_path']] = ($counts[$discussion['tag_path']] ?? 0) + 1;
+    }
+
+    $t->same(200, array_sum($counts), 'every discussion is tagged');
+    $t->ok(
+        ($counts['Voyage > Voyages France'] ?? 0) > ($counts['Cuisine'] ?? 0),
+        'the heavier tag is picked more often'
+    );
+});
+
+$t->test('a too-deep path raises a warning instead of silently changing', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config([
+        'discussions' => 5,
+        'replies' => 0,
+        'tags' => 'Sport > Cyclisme > Route',
+    ]));
+
+    $t->ok($plan->warnings !== [], 'the admin is told the path was folded to two levels');
+});
+
+$t->test('no tags at all is fine', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config(['discussions' => 5, 'replies' => 0]));
+
+    $t->same(5, count($plan->discussions), 'discussions are still planned');
+    $t->ok($plan->discussions[0]['tag_path'] === null, 'and simply carry no tag');
+});
+
 $t->test('Rng is reproducible and bounded', function (Runner $t): void {
     $a = new Rng(99);
     $b = new Rng(99);

@@ -28,7 +28,7 @@ final class PlanConfig
 
     /**
      * @param  array<int, float>  $weekdayWeights  keyed 1 (Mon) .. 7 (Sun)
-     * @param  array<int, array{id: int, name: string, weight: float}>  $tags
+     * @param  array<int, array{path: string, name: string, weight: float}>  $tags
      * @param  array<string, mixed>  $raw
      */
     private function __construct(
@@ -285,31 +285,128 @@ final class PlanConfig
     }
 
     /**
+     * Tags are given as hierarchical paths ("Voyage > Voyages France"), which
+     * the seeder resolves against existing tags and creates when missing.
+     *
+     * Accepts either a list of entries with a `path`, or the raw multi-line
+     * text straight from the admin textarea, one path per line with an optional
+     * `| weight` suffix.
+     *
      * @param  array<string, mixed>  $data
-     * @return array<int, array{id: int, name: string, weight: float}>
+     * @return array<int, array{path: string, name: string, weight: float}>
      */
     private static function tagsOf(array $data): array
     {
         $given = $data['tags'] ?? [];
+
+        if (is_string($given)) {
+            $given = self::parseTagLines($given);
+        }
 
         if (! is_array($given)) {
             return [];
         }
 
         $tags = [];
+        $seen = [];
 
         foreach ($given as $tag) {
-            if (! is_array($tag) || ! isset($tag['id']) || ! is_numeric($tag['id'])) {
+            if (is_string($tag)) {
+                $tag = ['path' => $tag];
+            }
+
+            if (! is_array($tag)) {
                 continue;
             }
 
+            // `name` is accepted as a fallback so a flat tag list still works.
+            $path = trim((string) ($tag['path'] ?? $tag['name'] ?? ''));
+
+            if ($path === '') {
+                continue;
+            }
+
+            $segments = self::tagSegments($path);
+
+            if ($segments === []) {
+                continue;
+            }
+
+            $path = implode(' > ', $segments);
+            $key = mb_strtolower($path);
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+
             $tags[] = [
-                'id' => (int) $tag['id'],
-                'name' => (string) ($tag['name'] ?? ''),
+                'path' => $path,
+                // The leaf is the most specific label, and the one a member
+                // would actually think of the thread as belonging to.
+                'name' => $segments[count($segments) - 1],
                 'weight' => max(0.0, (float) ($tag['weight'] ?? 1.0)),
             ];
         }
 
         return $tags;
+    }
+
+    /**
+     * @return array<int, array{path: string, weight: float}>
+     */
+    private static function parseTagLines(string $text): array
+    {
+        $tags = [];
+
+        foreach (preg_split('/\r\n|\r|\n/', $text) ?: [] as $line) {
+            $line = trim((string) $line);
+
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+
+            $weight = 1.0;
+
+            // "Voyage > Voyages France | 3"
+            if (str_contains($line, '|')) {
+                [$line, $rawWeight] = array_map('trim', explode('|', $line, 2));
+
+                if (is_numeric($rawWeight)) {
+                    $weight = (float) $rawWeight;
+                }
+            }
+
+            if ($line !== '') {
+                $tags[] = ['path' => $line, 'weight' => $weight];
+            }
+        }
+
+        return $tags;
+    }
+
+    /**
+     * Splits a path, keeping at most the two levels flarum/tags supports.
+     *
+     * @return array<int, string>
+     */
+    public static function tagSegments(string $path): array
+    {
+        $parts = [];
+
+        foreach (preg_split('/\s*>\s*/', trim($path)) ?: [] as $segment) {
+            $segment = trim(preg_replace('/\s+/u', ' ', (string) $segment) ?? '');
+
+            if ($segment !== '') {
+                $parts[] = mb_substr($segment, 0, 100);
+            }
+        }
+
+        if (count($parts) <= 2) {
+            return $parts;
+        }
+
+        return [$parts[0], $parts[count($parts) - 1]];
     }
 }

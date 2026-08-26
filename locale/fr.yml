@@ -41,8 +41,10 @@ pbiaut-ai-seeder:
       theme: Sujets abordés par les membres
       theme_help: Par exemple « auto-hébergement, serveurs perso et NAS, pour des bricoleurs passionnés ».
       audience: Qui sont les membres
-      tags: Étiquettes à utiliser
-      tags_help: Le poids détermine la fréquence de tirage d'une étiquette. Décochez-la pour ne pas l'utiliser du tout.
+      tags: "Étiquettes à utiliser (une par ligne)"
+      tags_help: "Un chemin par ligne. Utilisez \" > \" pour une sous-étiquette : Voyage > Voyages France. Ce qui existe déjà est réutilisé, ce qui manque est créé. Ajoutez « | 3 » en fin de ligne pour rendre cette étiquette trois fois plus probable. Flarum n'accepte que deux niveaux."
+      tags_placeholder: "Voyage > Voyages France\nVoyage > Voyages Asie | 2\nCuisine\n"
+      tags_load: "Charger les étiquettes existantes du forum"
       users: Membres
       discussions: Discussions
       replies: Réponses (total)

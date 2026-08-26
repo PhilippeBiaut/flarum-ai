@@ -80,7 +80,8 @@ export interface SeederForm {
   theme: string;
   tone: string;
   audience: string;
-  tags: { id: number; name: string; weight: number }[];
+  /** One hierarchical path per line: "Voyage > Voyages France", optional "| weight". */
+  tags: string;
 }
 
 /** Statuses where the run is still moving and the screen should keep polling. */
@@ -132,7 +133,7 @@ export default class SeederState {
       theme: '',
       tone: '',
       audience: '',
-      tags: [],
+      tags: '',
       ...saved,
     };
   }
@@ -146,6 +147,15 @@ export default class SeederState {
       const parsed = JSON.parse(raw);
       // A fresh seed each time unless the admin asks for reproducibility.
       delete parsed.seed;
+
+      // The backend stores tags normalised as objects; the form edits them as
+      // text, so turn them back into one path per line.
+      if (Array.isArray(parsed.tags)) {
+        parsed.tags = parsed.tags
+          .map((tag: any) => (tag?.weight && tag.weight !== 1 ? `${tag.path} | ${tag.weight}` : tag?.path))
+          .filter(Boolean)
+          .join('\n');
+      }
 
       return parsed;
     } catch (e) {

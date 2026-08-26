@@ -175,7 +175,7 @@ class BatchService
                 'position' => $index,
                 'author_item_id' => $userItems[$discussion['author']] ?? null,
                 'payload' => json_encode([
-                    'tag_id' => $discussion['tag_id'],
+                    'tag_path' => $discussion['tag_path'],
                     'tag_name' => $discussion['tag_name'],
                 ]),
                 'status' => Item::STATUS_PENDING,

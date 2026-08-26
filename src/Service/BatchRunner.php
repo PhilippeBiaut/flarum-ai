@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Pbiaut\AiSeeder\Creator\CounterRefresher;
 use Pbiaut\AiSeeder\Creator\DiscussionCreator;
 use Pbiaut\AiSeeder\Creator\ReplyCreator;
+use Pbiaut\AiSeeder\Creator\TagProvisioner;
 use Pbiaut\AiSeeder\Creator\UserCreator;
 use Pbiaut\AiSeeder\Generator\DiscussionBodyGenerator;
 use Pbiaut\AiSeeder\Generator\GenerationContext;
@@ -42,6 +43,7 @@ class BatchRunner
         protected DiscussionCreator $discussionCreator,
         protected ReplyCreator $replyCreator,
         protected CounterRefresher $counters,
+        protected TagProvisioner $tags,
     ) {
     }
 
@@ -261,7 +263,10 @@ class BatchRunner
             $content = $this->bodies->generate(
                 (string) $item->get('title'),
                 $this->personaOf($item),
-                $item->get('tag_name'),
+                // The full path gives the model more to work with than the leaf
+                // alone: "Voyage > Voyages France" says a good deal more than
+                // "Voyages France".
+                $item->get('tag_path') ?: $item->get('tag_name'),
                 $context,
                 $model
             );
@@ -272,18 +277,25 @@ class BatchRunner
         }
 
         try {
-            $tagId = $item->get('tag_id');
+            // Resolves the path against existing tags and creates what is
+            // missing, parent first. Returns both ids for a nested path, so the
+            // discussion carries its primary tag as well as the child.
+            $tagIds = $this->tags->resolve((string) $item->get('tag_path', ''));
 
             $discussion = $this->discussionCreator->create(
                 (string) $item->get('title'),
                 $content,
                 $author,
                 $item->scheduled_at,
-                $tagId ? [(int) $tagId] : []
+                $tagIds
             );
 
             $item->target_id = $discussion->id;
-            $item->mergePayload(['content' => $content, 'first_post_id' => $discussion->first_post_id]);
+            $item->mergePayload([
+                'content' => $content,
+                'first_post_id' => $discussion->first_post_id,
+                'tag_ids' => $tagIds,
+            ]);
             $item->status = Item::STATUS_DONE;
             $item->error = null;
             $item->save();

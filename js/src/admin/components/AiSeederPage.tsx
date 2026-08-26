@@ -345,57 +345,58 @@ export default class AiSeederPage extends ExtensionPage<ExtensionPageAttrs> {
   }
 
   /**
-   * Tags are optional: the field only appears when flarum/tags is installed,
-   * and the seeder simply skips tagging otherwise.
+   * Tags are written as one hierarchical path per line. Anything that already
+   * exists is reused; anything missing is created when the run starts. Without
+   * flarum/tags the field is hidden and discussions are simply left untagged.
    */
   tagsField() {
-    const tags = (app.store.all('tags') as any[]) || [];
-
-    if (!tags.length) return null;
-
-    const selected = this.state.form.tags;
+    if (!app.store.all('tags').length && !this.state.form.tags) return null;
 
     return (
       <div className="Form-group">
         <label>{app.translator.trans('pbiaut-ai-seeder.admin.form.tags')}</label>
-        <div className="AiSeeder-tags">
-          {tags.map((tag: any) => {
-            const entry = selected.find((item) => item.id === Number(tag.id()));
-
-            return (
-              <label className={`AiSeeder-tagChip ${entry ? 'is-selected' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={!!entry}
-                  onchange={(e: Event) => {
-                    const checked = (e.target as HTMLInputElement).checked;
-
-                    if (checked) {
-                      selected.push({ id: Number(tag.id()), name: tag.name(), weight: 1 });
-                    } else {
-                      this.state.form.tags = selected.filter((item) => item.id !== Number(tag.id()));
-                    }
-                  }}
-                />
-                <span>{tag.name()}</span>
-                {entry ? (
-                  <input
-                    className="AiSeeder-tagWeight"
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={entry.weight}
-                    onclick={(e: Event) => e.stopPropagation()}
-                    oninput={(e: InputEvent) => (entry.weight = Number((e.target as HTMLInputElement).value) || 0)}
-                  />
-                ) : null}
-              </label>
-            );
-          })}
-        </div>
+        <textarea
+          className="FormControl AiSeeder-tagPaths"
+          rows="6"
+          spellcheck={false}
+          placeholder={extractText(app.translator.trans('pbiaut-ai-seeder.admin.form.tags_placeholder'))}
+          value={this.state.form.tags}
+          oninput={(e: InputEvent) => (this.state.form.tags = (e.target as HTMLTextAreaElement).value)}
+        />
         <div className="helpText">{app.translator.trans('pbiaut-ai-seeder.admin.form.tags_help')}</div>
+        <Button className="Button Button--text" icon="fas fa-download" onclick={() => this.loadExistingTags()}>
+          {app.translator.trans('pbiaut-ai-seeder.admin.form.tags_load')}
+        </Button>
       </div>
     );
+  }
+
+  /** Fills the textarea with the forum's current tag hierarchy. */
+  loadExistingTags() {
+    const tags = (app.store.all('tags') as any[]) || [];
+    const lines: string[] = [];
+
+    const isChild = (tag: any) => !!(tag.parent && tag.parent());
+
+    tags
+      .filter((tag) => !isChild(tag))
+      .sort((a, b) => (a.position() ?? 999) - (b.position() ?? 999))
+      .forEach((parent) => {
+        const children = tags.filter((tag) => isChild(tag) && tag.parent().id() === parent.id());
+
+        if (!children.length) {
+          lines.push(parent.name());
+          return;
+        }
+
+        // A parent that has children is browsed through them, so only the
+        // leaves are worth seeding into.
+        children
+          .sort((a, b) => (a.position() ?? 999) - (b.position() ?? 999))
+          .forEach((child) => lines.push(`${parent.name()} > ${child.name()}`));
+      });
+
+    this.state.form.tags = lines.join('\n');
   }
 
   confirmStart() {

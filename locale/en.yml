@@ -41,8 +41,10 @@ pbiaut-ai-seeder:
       theme: What members talk about
       theme_help: For example "self-hosting, home servers and NAS, for hobbyists who like tinkering".
       audience: Who the members are
-      tags: Tags to use
-      tags_help: The weight decides how often a tag is picked. Leave a tag unchecked to skip it entirely.
+      tags: "Tags to use (one path per line)"
+      tags_help: "One path per line. Use \" > \" for a sub-tag: Voyage > Voyages France. Anything that already exists is reused, anything missing is created. Add \"| 3\" at the end of a line to make that tag three times more likely. Flarum tags go two levels deep at most."
+      tags_placeholder: "Voyage > Voyages France\nVoyage > Voyages Asie | 2\nCuisine\n"
+      tags_load: "Load the forum's existing tags"
       users: Members
       discussions: Discussions
       replies: Replies (total)

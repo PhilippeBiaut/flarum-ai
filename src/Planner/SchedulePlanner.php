@@ -23,6 +23,8 @@ class SchedulePlanner
         $days = $this->buildDays($config);
         $dayWeights = $this->dayWeights($config, $days, $rng);
 
+        $this->warnDeepTagPaths($config, $result);
+
         $result->users = $this->planSignups($config, $days, $dayWeights, $rng);
 
         if ($config->discussions === 0) {
@@ -53,7 +55,7 @@ class SchedulePlanner
             $result->discussions[$index] = [
                 'author' => $author,
                 'created_at' => $createdAt,
-                'tag_id' => $tag['id'] ?? null,
+                'tag_path' => $tag['path'] ?? null,
                 'tag_name' => $tag['name'] ?? null,
                 'replies' => $this->planReplies(
                     $config,
@@ -392,7 +394,67 @@ class SchedulePlanner
     }
 
     /**
-     * @return array{id: int, name: string, weight: float}|array{}
+     * flarum/tags is two levels deep: a primary tag and its children. Anything
+     * deeper is folded down to "first > last", and the admin is told so rather
+     * than quietly getting something else than what they typed.
+     */
+    protected function warnDeepTagPaths(PlanConfig $config, PlanResult $result): void
+    {
+        foreach ($this->rawTagPaths($config) as $original) {
+            $depth = count(array_filter(
+                array_map('trim', explode('>', $original)),
+                fn (string $part) => $part !== ''
+            ));
+
+            if ($depth > 2) {
+                $result->warnings[] = sprintf(
+                    'Flarum tags only go two levels deep: "%s" will be created as "%s".',
+                    trim($original),
+                    implode(' > ', PlanConfig::tagSegments($original))
+                );
+            }
+        }
+    }
+
+    /**
+     * The paths exactly as the admin typed them, before normalisation.
+     *
+     * @return array<int, string>
+     */
+    protected function rawTagPaths(PlanConfig $config): array
+    {
+        $given = $config->generation('tags', []);
+
+        if (is_string($given)) {
+            $given = preg_split('/\r\n|\r|\n/', $given) ?: [];
+        }
+
+        if (! is_array($given)) {
+            return [];
+        }
+
+        $paths = [];
+
+        foreach ($given as $entry) {
+            $path = is_array($entry) ? ($entry['path'] ?? $entry['name'] ?? '') : $entry;
+
+            if (! is_string($path)) {
+                continue;
+            }
+
+            // Strip an optional "| weight" suffix.
+            $path = trim(explode('|', $path, 2)[0]);
+
+            if ($path !== '' && ! str_starts_with($path, '#')) {
+                $paths[] = $path;
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @return array{path: string, name: string, weight: float}|array{}
      */
     protected function pickTag(PlanConfig $config, Rng $rng): array
     {
