@@ -15,6 +15,8 @@ pbiaut-ai-seeder:
       run_help: "La génération tourne en arrière-plan, par petits paquets d'appels API."
       history: "Historique"
       history_help: "Chaque génération peut être rouverte, et tout ce qu'elle a créé supprimé en un clic."
+      daily: "Faire vivre le forum tout seul"
+      daily_help: "Génère chaque jour un petit lot, daté du jour, en réutilisant les membres créés précédemment. Il reprend le brief de votre dernière génération manuelle : lancez-en une d'abord."
       retag: "Étiqueter les discussions existantes"
       retag_help: "Classe les fils déjà présents sur le forum dans la liste d'étiquettes ci-dessus. Rien n'est écrit, modifié ni supprimé : seules des étiquettes sont ajoutées."
 
@@ -25,6 +27,10 @@ pbiaut-ai-seeder:
       base_url_help: "Laissez vide pour OpenAI. À changer pour Azure OpenAI, OpenRouter, LiteLLM ou un serveur local."
       calls_per_run: "Appels API par job de file"
       calls_per_request: "Appels API par tranche pilotée par le navigateur"
+      daily_users: "Nouveaux membres par jour (moyenne)"
+      daily_discussions: "Nouvelles discussions par jour (moyenne)"
+      daily_replies: "Nouvelles réponses par jour (moyenne)"
+      daily_jitter: "Variation d'un jour à l'autre (0 à 1)"
       requests_per_minute: "Requêtes par minute max (0 = illimité)"
       max_tokens: "Tokens max par réponse"
       temperature: "Température"
@@ -92,6 +98,10 @@ pbiaut-ai-seeder:
       answers: "répond à [{n}]"
       words: "mots"
       rejected: "Rejetée comme doublon ou inutilisable ; une vraie génération la régénérerait."
+
+    daily:
+      enable: "Générer un lot automatiquement chaque jour"
+      cron: "Nécessite l'ordonnanceur de Flarum : un cron lançant `php flarum schedule:run` chaque minute. Sans lui, rien ne part tout seul. Les volumes varient d'un jour à l'autre, et un jour déjà fait n'est jamais refait."
 
     preview:
       members: "Membres"

@@ -186,11 +186,23 @@ class SchedulePlanner
      */
     protected function planSignups(PlanConfig $config, array $days, array $dayWeights, Rng $rng): array
     {
-        if ($config->users === 0) {
-            return [];
+        // Members the forum already has keep their real join date and are never
+        // created again: they simply become available authors.
+        $users = [];
+
+        foreach ($config->existingUsers as $existing) {
+            $users[] = ['joined_at' => $existing['joined_at'], 'existing_id' => $existing['id']];
         }
 
-        $founders = min($config->users, max(1, (int) round($config->users * $config->founderRatio)));
+        if ($config->users === 0) {
+            return $this->indexed($users);
+        }
+
+        // A founding cohort is only needed when nobody is there yet; on a forum
+        // that already has members, everyone simply joins over the period.
+        $founders = $config->existingUsers === []
+            ? min($config->users, max(1, (int) round($config->users * $config->founderRatio)))
+            : 0;
         $remaining = $config->users - $founders;
 
         $joinDates = [];
@@ -212,13 +224,24 @@ class SchedulePlanner
 
         usort($joinDates, fn (DateTimeImmutable $a, DateTimeImmutable $b) => $a <=> $b);
 
-        $users = [];
-
-        foreach ($joinDates as $index => $joinedAt) {
-            $users[$index] = ['joined_at' => $joinedAt];
+        foreach ($joinDates as $joinedAt) {
+            $users[] = ['joined_at' => $joinedAt, 'existing_id' => null];
         }
 
-        return $users;
+        return $this->indexed($users);
+    }
+
+    /**
+     * Sorted by join date and re-indexed, which is what AuthorPool expects.
+     *
+     * @param  array<int, array{joined_at: DateTimeImmutable, existing_id: int|null}>  $users
+     * @return array<int, array{joined_at: DateTimeImmutable, existing_id: int|null}>
+     */
+    protected function indexed(array $users): array
+    {
+        usort($users, fn (array $a, array $b) => $a['joined_at'] <=> $b['joined_at']);
+
+        return array_values($users);
     }
 
     /**

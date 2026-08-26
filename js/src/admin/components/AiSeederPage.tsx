@@ -4,6 +4,7 @@ import Button from 'flarum/common/components/Button';
 import Alert from 'flarum/common/components/Alert';
 import LoadingIndicator from 'flarum/common/components/LoadingIndicator';
 import Select from 'flarum/common/components/Select';
+import Switch from 'flarum/common/components/Switch';
 import extractText from 'flarum/common/utils/extractText';
 import type Mithril from 'mithril';
 
@@ -46,6 +47,7 @@ export default class AiSeederPage extends ExtensionPage<ExtensionPageAttrs> {
           {this.retagSection()}
           {this.previewSection()}
           {this.runSection()}
+          {this.dailySection()}
           {this.historySection()}
         </div>
       </div>
@@ -395,6 +397,37 @@ export default class AiSeederPage extends ExtensionPage<ExtensionPageAttrs> {
     if (!active) return null;
 
     return this.section('run', <BatchProgress batch={active} state={this.state} />);
+  }
+
+  /**
+   * Keeps the forum growing on its own, one small batch a day.
+   */
+  dailySection() {
+    const enabled = this.setting('pbiaut-ai-seeder.daily_enabled')() === '1';
+
+    return this.section(
+      'daily',
+      <div>
+        <div className="Form-group">
+          <Switch state={enabled} onchange={(value: boolean) => this.setting('pbiaut-ai-seeder.daily_enabled')(value ? '1' : '0')}>
+            {app.translator.trans('pbiaut-ai-seeder.admin.daily.enable')}
+          </Switch>
+        </div>
+
+        <div className="AiSeeder-row">
+          {this.numberField('pbiaut-ai-seeder.daily_users', 'daily_users', 1)}
+          {this.numberField('pbiaut-ai-seeder.daily_discussions', 'daily_discussions', 3)}
+          {this.numberField('pbiaut-ai-seeder.daily_replies', 'daily_replies', 12)}
+          {this.settingField('pbiaut-ai-seeder.daily_jitter', 'daily_jitter', '0.4', 'number')}
+        </div>
+
+        <div className="AiSeeder-actions">{this.submitButton()}</div>
+
+        <Alert type="warning" dismissible={false}>
+          {app.translator.trans('pbiaut-ai-seeder.admin.daily.cron')}
+        </Alert>
+      </div>
+    );
   }
 
   historySection() {

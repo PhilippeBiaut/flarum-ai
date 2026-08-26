@@ -15,6 +15,8 @@ pbiaut-ai-seeder:
       run_help: "Generation happens in the background, a few API calls at a time."
       history: "History"
       history_help: "Every run can be reopened, and everything it created can be removed in one click."
+      daily: "Keep the forum growing on its own"
+      daily_help: "Generates one small batch a day, dated that day, reusing the members earlier runs created. It reuses the brief from your last manual run, so start one first."
       retag: "Tag existing discussions"
       retag_help: "Sorts threads already on the forum into the tag list above. Nothing is written, edited or deleted: only tags are added."
 
@@ -25,6 +27,10 @@ pbiaut-ai-seeder:
       base_url_help: "Leave empty for OpenAI. Point it elsewhere for Azure OpenAI, OpenRouter, LiteLLM or a local server."
       calls_per_run: "API calls per queue job"
       calls_per_request: "API calls per browser-driven slice"
+      daily_users: "New members per day (average)"
+      daily_discussions: "New discussions per day (average)"
+      daily_replies: "New replies per day (average)"
+      daily_jitter: "Day-to-day variation (0 to 1)"
       requests_per_minute: "Max requests per minute (0 = no limit)"
       max_tokens: "Max tokens per response"
       temperature: "Temperature"
@@ -92,6 +98,10 @@ pbiaut-ai-seeder:
       answers: "answers [{n}]"
       words: "words"
       rejected: "Rejected as a duplicate or unusable; a real run would regenerate it."
+
+    daily:
+      enable: "Generate a batch automatically every day"
+      cron: "This needs Flarum's scheduler: a cron running `php flarum schedule:run` every minute. Without it nothing runs on its own. Volumes vary from day to day, and a day already done is never repeated."
 
     preview:
       members: "Members"

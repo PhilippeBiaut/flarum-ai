@@ -304,12 +304,20 @@ class BatchService
         $userRows = [];
 
         foreach ($plan->users as $index => $user) {
+            $existingId = $user['existing_id'] ?? null;
+
             $userRows[] = [
                 'batch_id' => $batch->id,
                 'type' => Item::TYPE_USER,
                 'scheduled_at' => Dates::toUtc($user['joined_at'])->format('Y-m-d H:i:s'),
                 'position' => $index,
-                'status' => Item::STATUS_PENDING,
+                // A member who already exists is recorded as done and pointing
+                // at them, so authorship resolves without creating anybody -
+                // and rollback, which only deletes what a run created, leaves
+                // them alone.
+                'target_id' => $existingId,
+                'payload' => $existingId === null ? null : json_encode(['reused' => true]),
+                'status' => $existingId === null ? Item::STATUS_PENDING : Item::STATUS_DONE,
             ];
         }
 

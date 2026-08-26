@@ -10,6 +10,7 @@
 namespace Pbiaut\AiSeeder;
 
 use Flarum\Extend;
+use Illuminate\Console\Scheduling\Event;
 
 return [
     (new Extend\Frontend('admin'))
@@ -36,5 +37,12 @@ return [
     // they interleave with the forum's own mail jobs instead of blocking them.
 
     (new Extend\Console())
-        ->command(Console\SeedCommand::class),
+        ->command(Console\SeedCommand::class)
+        ->command(Console\DailyCommand::class)
+        // Runs hourly rather than once a day on purpose: the command itself
+        // decides whether today is due, so a forum whose cron missed 3am - a
+        // reboot, a slow night - still gets its batch instead of skipping a day.
+        ->schedule('ai-seeder:daily', function (Event $event) {
+            $event->hourly();
+        }),
 ];

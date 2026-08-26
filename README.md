@@ -123,6 +123,33 @@ php flarum ai-seeder:run --users=20 --discussions=50 --replies=300 --from=2026-0
 Keep the **seed** if you want to reproduce the exact same calendar later; leave it
 empty for a new one each time.
 
+## Keeping the forum growing
+
+Backfilling a period is one thing; a forum that stops the day you seeded it is
+another. Turn on *Keep the forum growing on its own* and the extension generates
+one small batch a day, dated that day.
+
+It reuses the members earlier runs created rather than inventing a fresh cohort,
+so the same people keep posting instead of a new isolated crowd appearing every
+morning. Volumes vary day to day, and a day already generated is never repeated -
+running the command twice creates nothing the second time.
+
+It needs Flarum's scheduler, which is a single cron:
+
+```bash
+* * * * * cd /path/to/forum && php flarum schedule:run >> /dev/null 2>&1
+```
+
+The daily run borrows the brief from your last manual generation - language,
+theme, tone, tags, model - so run one by hand first. Without it there is nothing
+to write about and the scheduler does nothing.
+
+To generate today's batch immediately, whatever the schedule says:
+
+```bash
+php flarum ai-seeder:daily --force
+```
+
 ## Command line
 
 ```bash

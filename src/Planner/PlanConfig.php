@@ -49,6 +49,7 @@ final class PlanConfig
         public int $replyWindowDays,
         public int $seed,
         public array $tags,
+        public array $existingUsers,
         public array $raw,
     ) {
     }
@@ -149,6 +150,7 @@ final class PlanConfig
         }
 
         $tags = self::tagsOf($data);
+        $existingUsers = self::existingUsersOf($data, $tz);
 
         if ($errors !== []) {
             throw new InvalidConfigException($errors);
@@ -172,6 +174,7 @@ final class PlanConfig
             replyWindowDays: $replyWindowDays,
             seed: $seed,
             tags: $tags,
+            existingUsers: $existingUsers,
             raw: $data,
         );
     }
@@ -219,6 +222,7 @@ final class PlanConfig
             'reply_window_days' => $this->replyWindowDays,
             'seed' => $this->seed,
             'tags' => $this->tags,
+            'existing_users' => [],
         ]);
     }
 
@@ -351,6 +355,50 @@ final class PlanConfig
         }
 
         return $tags;
+    }
+
+    /**
+     * Members the forum already has, who should keep posting rather than being
+     * replaced by a fresh cohort.
+     *
+     * Only meaningful for a recurring run: without it every daily batch would
+     * invent its own isolated set of people, and everyone created yesterday
+     * would fall silent forever.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<int, array{id: int, joined_at: DateTimeImmutable}>
+     */
+    private static function existingUsersOf(array $data, DateTimeZone $tz): array
+    {
+        $given = $data['existing_users'] ?? [];
+
+        if (! is_array($given)) {
+            return [];
+        }
+
+        $users = [];
+
+        foreach ($given as $user) {
+            if (! is_array($user) || ! isset($user['id'], $user['joined_at'])) {
+                continue;
+            }
+
+            // Flarum stores these in UTC; the planner reasons in the forum's own
+            // timezone, so that "an evening post" means the same thing.
+            $joined = DateTimeImmutable::createFromFormat(
+                'Y-m-d H:i:s',
+                (string) $user['joined_at'],
+                new DateTimeZone('UTC')
+            );
+
+            if ($joined === false) {
+                continue;
+            }
+
+            $users[] = ['id' => (int) $user['id'], 'joined_at' => $joined->setTimezone($tz)];
+        }
+
+        return $users;
     }
 
     /**

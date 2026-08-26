@@ -147,6 +147,51 @@ class SeederSettings
         return min(20, max(1, (int) $this->get('calls_per_request', 3)));
     }
 
+    /** Whether a small batch should be generated automatically each day. */
+    public function dailyEnabled(): bool
+    {
+        return (bool) $this->get('daily_enabled', false);
+    }
+
+    /**
+     * Average volumes for one day. Kept small on purpose: this is upkeep, not
+     * backfill, and it runs unattended against a paid API.
+     *
+     * @return array{users: int, discussions: int, replies: int}
+     */
+    public function dailyVolumes(): array
+    {
+        return [
+            'users' => min(50, max(0, (int) $this->get('daily_users', 1))),
+            'discussions' => min(100, max(0, (int) $this->get('daily_discussions', 3))),
+            'replies' => min(500, max(0, (int) $this->get('daily_replies', 12))),
+        ];
+    }
+
+    /** How much a day's volumes may wander from the average, 0 to 1. */
+    public function dailyJitter(): float
+    {
+        return min(0.9, max(0.0, (float) $this->get('daily_jitter', 0.4)));
+    }
+
+    /** How many past members a recurring run may draw authors from. */
+    public function dailyAuthorPool(): int
+    {
+        return min(2000, max(10, (int) $this->get('daily_author_pool', 400)));
+    }
+
+    public function lastDailyRun(): ?string
+    {
+        $value = $this->get('daily_last_run');
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    public function markDailyRun(string $date): void
+    {
+        $this->set('daily_last_run', $date);
+    }
+
     /**
      * Last used generation context, so the admin form comes back pre-filled.
      *
