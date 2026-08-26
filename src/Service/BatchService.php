@@ -328,6 +328,7 @@ class BatchService
                 'payload' => json_encode([
                     'tag_path' => $discussion['tag_path'],
                     'tag_name' => $discussion['tag_name'],
+                    'archetype' => $discussion['archetype'],
                 ]),
                 'status' => Item::STATUS_PENDING,
             ];
@@ -353,6 +354,7 @@ class BatchService
                         'words' => $reply['words'],
                         'length' => $reply['length'],
                         'replies_to' => $reply['replies_to'],
+                        'type' => $reply['type'],
                     ]),
                     'status' => Item::STATUS_PENDING,
                 ];

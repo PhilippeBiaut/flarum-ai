@@ -5,6 +5,7 @@ namespace Pbiaut\AiSeeder\Generator;
 use Pbiaut\AiSeeder\OpenAI\Client;
 use Pbiaut\AiSeeder\OpenAI\OpenAiException;
 use Pbiaut\AiSeeder\Planner\ReplyLength;
+use Pbiaut\AiSeeder\Planner\ReplyType;
 
 /**
  * Generates every reply of a thread in a single call.
@@ -24,6 +25,7 @@ class ReplyBundleGenerator
     public function __construct(
         protected Client $client,
         protected PromptBuilder $prompts,
+        protected ReplyQuality $quality,
     ) {
     }
 
@@ -33,7 +35,11 @@ class ReplyBundleGenerator
      * @param  array<int, array{author: string, content: string}>  $alreadyWritten  earlier replies of this thread
      * @param  array<int, int>  $lengths  target word count per reply
      * @param  array<int, int>  $targets  message index each reply answers (0 = opening post)
-     * @return array<int, string>  one body per requested reply
+     * @param  array<int, string>  $types  the intent of each reply
+     * @return array<int, string|null>  one body per requested reply; null where
+     *                                  the model gave nothing usable, so the
+     *                                  caller can retry that slot instead of
+     *                                  putting a duplicate on the forum
      *
      * @throws OpenAiException
      */
@@ -47,6 +53,7 @@ class ReplyBundleGenerator
         ?string $model = null,
         array $lengths = [],
         array $targets = [],
+        array $types = [],
     ): array {
         $count = count($personas);
 
@@ -88,6 +95,7 @@ class ReplyBundleGenerator
                 .($persona['display_name'] ?? $persona['username'] ?? 'a member')
                 .' - answering message ['.$targetNumber.'], '
                 .ReplyLength::instruction((int) ($lengths[$index] ?? 90))."\n"
+                .'What this reply does: '.ReplyType::instruction($types[$index] ?? ReplyType::ANSWER)."\n"
                 .$this->prompts->describePersona($persona, 'Member');
         }
 
@@ -109,6 +117,9 @@ class ReplyBundleGenerator
             '  answering with "> ", or name the member you are replying to. Do both only when it helps.',
             '- You may agree and add something, disagree and say why, correct a mistake, or ask that',
             '  person to clarify. What you must not do is ignore them and answer the opening post again.',
+            '',
+            'Every reply must say something the others do not. Two replies making the same point',
+            'in different words is the one thing that gives a generated thread away.',
             '',
             'What a reply is for:',
             '- Answer the actual question. If it asks how, say how. If it asks which, choose and say why.',
@@ -144,11 +155,29 @@ class ReplyBundleGenerator
             throw new OpenAiException('The model returned no usable replies.', 0, true);
         }
 
-        // A short answer must not stall the batch: reuse the tail rather than fail.
-        while (count($replies) < $count) {
-            $replies[] = $replies[count($replies) % count($replies)];
+        // Quality gate. A rejected slot comes back as null and is retried on a
+        // later pass; it is never filled with a copy of a sibling, which is
+        // exactly how duplicate replies used to reach the forum.
+        $kept = [];
+        $accepted = array_map(fn (array $message) => $message['content'], $alreadyWritten);
+
+        for ($index = 0; $index < $count; $index++) {
+            $candidate = $replies[$index] ?? null;
+
+            if ($candidate === null) {
+                $kept[] = null;
+                continue;
+            }
+
+            if ($this->quality->reject($candidate, $accepted) !== null) {
+                $kept[] = null;
+                continue;
+            }
+
+            $accepted[] = $candidate;
+            $kept[] = $candidate;
         }
 
-        return array_slice($replies, 0, $count);
+        return $kept;
     }
 }

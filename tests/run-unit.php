@@ -34,6 +34,7 @@ use Pbiaut\AiSeeder\Planner\PlanConfig;
 use Pbiaut\AiSeeder\Planner\PlanResult;
 use Pbiaut\AiSeeder\Planner\ReplyLength;
 use Pbiaut\AiSeeder\Planner\ReplyTarget;
+use Pbiaut\AiSeeder\Planner\ReplyType;
 use Pbiaut\AiSeeder\Planner\Rng;
 use Pbiaut\AiSeeder\Planner\SchedulePlanner;
 
@@ -373,9 +374,16 @@ $t->test('edge cases do not blow up', function (Runner $t): void {
 
         $t->same($c->discussions, count($plan->discussions), "$label: discussion total");
 
+        // Threads drawn as "dead" are held out of the distribution, so capacity
+        // is a function of the answered ones, not of every discussion.
+        $answered = count(array_filter(
+            $plan->discussions,
+            fn (array $discussion) => $discussion['archetype'] !== 'dead'
+        ));
+
         $expectedReplies = min(
-            max($c->replies, $c->discussions * $c->repliesMin),
-            $c->discussions * $c->repliesMax
+            max($c->replies, $answered * $c->repliesMin),
+            $answered * $c->repliesMax
         );
         $t->same($expectedReplies, totalReplies($plan), "$label: reply total (bounds applied)");
 
@@ -463,6 +471,7 @@ $t->test('replies point at a message that exists before them', function (Runner 
     $impossible = 0;
     $toOpeningPost = 0;
     $toAnotherReply = 0;
+    $perTarget = [0];
 
     foreach ($plan->discussions as $discussion) {
         foreach (array_values($discussion['replies']) as $position => $reply) {
@@ -479,14 +488,26 @@ $t->test('replies point at a message that exists before them', function (Runner 
                 $impossible++;
             }
 
-            $target === 0 ? $toOpeningPost++ : $toAnotherReply++;
+            if ($target === 0) {
+                $toOpeningPost++;
+            } else {
+                $toAnotherReply++;
+                $perTarget[$target] = ($perTarget[$target] ?? 0) + 1;
+            }
         }
     }
 
     $t->same(0, $missing, 'every reply says which message it answers');
     $t->same(0, $impossible, 'no reply answers a message that does not exist yet');
     $t->ok($toAnotherReply > 0, 'some replies answer another member rather than the opening post');
-    $t->ok($toOpeningPost > $toAnotherReply, 'but the opening post still gets most of the answers');
+
+    // Replies answering each other is the point, so the opening post no longer
+    // holds an outright majority. What must stay true is that it is the single
+    // most-answered message of the thread.
+    $t->ok(
+        $toOpeningPost > max($perTarget),
+        'the opening post is still the most-answered single message'
+    );
 });
 
 $t->test('the first reply of a thread can only answer the opening post', function (Runner $t): void {
@@ -602,6 +623,107 @@ $t->test('no tags at all is fine', function (Runner $t): void {
 
     $t->same(5, count($plan->discussions), 'discussions are still planned');
     $t->ok($plan->discussions[0]['tag_path'] === null, 'and simply carry no tag');
+});
+
+// ----------------------------------------------------------- reply behaviour
+
+$t->test('reply types respect what is possible where they sit', function (Runner $t): void {
+    $rng = new Rng(31337);
+    $violations = [];
+
+    for ($i = 0; $i < 600; $i++) {
+        $total = $rng->int(1, 12);
+        $position = $rng->int(0, $total - 1);
+        $answersAReply = $position > 0 && $rng->bool();
+        $byAuthor = $rng->bool(0.2);
+
+        $type = ReplyType::draw($position, $total, $answersAReply, $byAuthor, $rng);
+
+        // Correcting or agreeing with the opening post's own author, when the
+        // reply is aimed at the opening post, has nothing to correct or agree
+        // with beyond the question itself.
+        if (! $answersAReply && in_array($type, ['correction', 'disagree', 'agree', 'pedantic'], true)) {
+            $violations[] = "$type answering the opening post";
+        }
+
+        // Only the person who asked reports back or says thanks.
+        if (! $byAuthor && in_array($type, ['followup', 'thanks'], true)) {
+            $violations[] = "$type from someone other than the author";
+        }
+
+        // And not in the opening exchanges.
+        $isLate = $total <= 2 || $position >= (int) floor($total * 0.55);
+
+        if (! $isLate && in_array($type, ['followup', 'thanks'], true)) {
+            $violations[] = "$type too early in the thread";
+        }
+    }
+
+    $t->same([], array_slice(array_unique($violations), 0, 5), 'no type appears where it makes no sense');
+});
+
+$t->test('useful replies stay in the majority', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config(['discussions' => 80, 'replies' => 900]));
+
+    $useful = ['answer', 'experience', 'expert', 'alternative', 'partial', 'resource'];
+    $tone = ['incisive', 'humour', 'teasing', 'skeptical', 'pedantic'];
+
+    $counts = ['useful' => 0, 'tone' => 0, 'total' => 0];
+
+    foreach ($plan->discussions as $discussion) {
+        foreach ($discussion['replies'] as $reply) {
+            $counts['total']++;
+
+            if (in_array($reply['type'], $useful, true)) {
+                $counts['useful']++;
+            } elseif (in_array($reply['type'], $tone, true)) {
+                $counts['tone']++;
+            }
+        }
+    }
+
+    $t->ok($counts['useful'] / $counts['total'] > 0.5, 'more than half of replies are there to help');
+    $t->ok($counts['tone'] / $counts['total'] < 0.2, 'tone-driven replies stay a garnish');
+});
+
+$t->test('a thread that nobody answers is possible, and common', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config(['discussions' => 120, 'replies' => 600]));
+
+    $dead = count(array_filter($plan->discussions, fn (array $d) => $d['replies'] === []));
+
+    $t->ok($dead > 10, "a real share of threads gets no reply at all (got $dead/120)");
+    $t->ok($dead < 60, 'but most threads do get answered');
+
+    // Asking for a minimum contradicts dead threads; the explicit setting wins.
+    $forced = (new SchedulePlanner())->plan(config(['discussions' => 40, 'replies' => 200, 'replies_min' => 2]));
+    $stillDead = count(array_filter($forced->discussions, fn (array $d) => $d['replies'] === []));
+
+    $t->same(0, $stillDead, 'a minimum per discussion leaves none unanswered');
+    $t->ok($forced->warnings !== [], 'and the contradiction is reported');
+});
+
+$t->test('ReplyQuality catches duplicates and assistant tells', function (Runner $t): void {
+    $quality = new Pbiaut\AiSeeder\Generator\ReplyQuality();
+
+    $original = 'Chez moi le souci venait du cache disque, il faut vider /var/cache avant de relancer le service.';
+
+    $t->ok($quality->reject($original, []) === null, 'a normal reply passes');
+
+    $reworded = 'Le souci chez moi venait du cache disque : il faut vider /var/cache avant de relancer le service.';
+    $t->ok($quality->reject($reworded, [$original]) !== null, 'the same point reworded is caught');
+
+    $different = 'Aucune idée pour le cache, mais vérifie plutôt les permissions du dossier de logs.';
+    $t->ok($quality->reject($different, [$original]) === null, 'a genuinely different reply is kept');
+
+    foreach ([
+        'As an AI, I cannot test this myself, but you could try clearing the cache.',
+        "Excellente question ! Il faut vider le cache disque avant de relancer le service, voila.",
+        "## Solution\n\nVider le cache disque puis relancer le service, c'est tout ce qu'il faut faire.",
+    ] as $bad) {
+        $t->ok($quality->reject($bad, []) !== null, 'rejected: '.mb_substr($bad, 0, 28).'...');
+    }
+
+    $t->ok($quality->reject('ok', []) !== null, 'a two-letter answer is rejected');
 });
 
 $t->test('Rng is reproducible and bounded', function (Runner $t): void {

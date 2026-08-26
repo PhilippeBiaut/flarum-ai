@@ -82,6 +82,8 @@ export interface SeederForm {
   audience: string;
   /** One hierarchical path per line: "Voyage > Voyages France", optional "| weight". */
   tags: string;
+  /** 0 to 1: how many threads nobody answers. */
+  dead_thread_share: number | '';
 }
 
 /** Statuses where the run is still moving and the screen should keep polling. */
@@ -108,6 +110,11 @@ export default class SeederState {
   } = { scope: 'untagged', date_start: '', date_end: '', limit: '', matched: null, estimate: null };
 
   counting = false;
+
+  /** One generated thread, shown before committing to a full run. */
+  sample: any = null;
+
+  sampling = false;
 
   batches: Batch[] = [];
   active: Batch | null = null;
@@ -157,6 +164,7 @@ export default class SeederState {
       tone: '',
       audience: '',
       tags: '',
+      dead_thread_share: 0.22,
       ...saved,
     };
   }
@@ -324,6 +332,23 @@ export default class SeederState {
       .catch((e) => this.fail(e))
       .finally(() => {
         this.starting = false;
+        m.redraw();
+      });
+  }
+
+  /** Generates a single thread so the brief can be judged before spending. */
+  makeSample(): Promise<void> {
+    this.sampling = true;
+    this.error = null;
+
+    return app
+      .request<any>({ method: 'POST', url: this.url('/sample'), body: this.payload() })
+      .then((sample) => {
+        this.sample = sample;
+      })
+      .catch((e) => this.fail(e))
+      .finally(() => {
+        this.sampling = false;
         m.redraw();
       });
   }

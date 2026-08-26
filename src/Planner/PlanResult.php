@@ -23,7 +23,8 @@ final class PlanResult
      *     created_at: DateTimeImmutable,
      *     tag_id: int|null,
      *     tag_name: string|null,
-     *     replies: array<int, array{author: int, created_at: DateTimeImmutable, words: int, length: string}>
+     *     archetype: string,
+     *     replies: array<int, array{author: int, created_at: DateTimeImmutable, words: int, length: string, replies_to: int, type: string}>
      * }>
      */
     public array $discussions = [];

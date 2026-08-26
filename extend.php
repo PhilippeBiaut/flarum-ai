@@ -21,6 +21,7 @@ return [
     (new Extend\Routes('api'))
         ->get('/ai-seeder/models', 'ai-seeder.models', Api\Controller\ListModelsController::class)
         ->post('/ai-seeder/plan', 'ai-seeder.plan', Api\Controller\PlanController::class)
+        ->post('/ai-seeder/sample', 'ai-seeder.sample', Api\Controller\SampleController::class)
         ->get('/ai-seeder/batches', 'ai-seeder.batches.index', Api\Controller\ListBatchesController::class)
         ->post('/ai-seeder/batches', 'ai-seeder.batches.create', Api\Controller\CreateBatchController::class)
         ->get('/ai-seeder/batches/{id}', 'ai-seeder.batches.show', Api\Controller\ShowBatchController::class)

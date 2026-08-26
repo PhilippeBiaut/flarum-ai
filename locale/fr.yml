@@ -5,6 +5,8 @@ pbiaut-ai-seeder:
       connection_help: La clé reste sur le serveur et n'est transmise qu'aux administrateurs.
       context: De quoi parle ce forum
       context_help: Tout ce qui est saisi ici part dans les prompts. Plus c'est précis, moins le contenu généré est générique.
+      sample: Essayer sur un seul fil
+      sample_help: Génère un fil complet et l'affiche ici. Rien n'est écrit sur le forum.
       volumes: Volumes et période
       volumes_help: Combien créer, sur quelle période, et selon quel rythme d'activité.
       preview: Plan jour par jour
@@ -61,6 +63,7 @@ pbiaut-ai-seeder:
       replies_min: Réponses min par discussion
       replies_max: Réponses max par discussion
       reply_window: Fenêtre de réponse (jours)
+      dead_share: "Part de fils sans réponse (0-1)"
       seed: Graine (vide = nouvelle)
       compute_plan: Calculer le plan
       compute_plan_help: Gratuit et instantané. Aucun appel à OpenAI.
@@ -81,6 +84,13 @@ pbiaut-ai-seeder:
       estimate: "Environ {calls} appel(s) API, coût : {cost}."
       start: Les étiqueter
       confirm: "Vous allez classer {count} discussions existantes avec environ {calls} appels OpenAI. Des étiquettes seront ajoutées à de vrais fils. Continuer ?"
+
+    sample:
+      generate: Générer un fil d'exemple
+      help: Environ quatre appels API. Le moyen le moins cher de vérifier le ton et la langue avant de lancer une génération complète.
+      answers: "répond à [{n}]"
+      words: mots
+      rejected: Rejetée comme doublon ou inutilisable ; une vraie génération la régénérerait.
 
     preview:
       members: Membres

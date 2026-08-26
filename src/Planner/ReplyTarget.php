@@ -17,7 +17,7 @@ namespace Pbiaut\AiSeeder\Planner;
 final class ReplyTarget
 {
     /** Share of replies that answer the opening post rather than each other. */
-    private const OPENING_POST_SHARE = 0.55;
+    private const OPENING_POST_SHARE = 0.62;
 
     /**
      * @param  int  $position  0-based index of the reply being placed

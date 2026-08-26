@@ -58,9 +58,12 @@ final class AuthorPool
     }
 
     /**
-     * @param  int|null  $exclude  user index that must not be picked (previous poster)
+     * @param  array<int, int>  $exclude  user indexes that must not be picked -
+     *                                    the previous poster, and the thread's
+     *                                    author when their returns are planned
+     *                                    deliberately rather than drawn
      */
-    public function pick(DateTimeImmutable $at, ?int $exclude, Rng $rng): ?int
+    public function pick(DateTimeImmutable $at, array $exclude, Rng $rng): ?int
     {
         if ($this->order === []) {
             return null;
@@ -74,26 +77,29 @@ final class AuthorPool
         }
 
         $total = $this->prefix[$eligible - 1];
+        $banned = array_flip($exclude);
 
-        for ($attempt = 0; $attempt < 6; $attempt++) {
+        for ($attempt = 0; $attempt < 8; $attempt++) {
             $index = $this->order[$this->searchPrefix($rng->float() * $total, $eligible)];
 
-            if ($index !== $exclude || $eligible === 1) {
+            if (! isset($banned[$index]) || $eligible === 1) {
                 return $index;
             }
         }
 
-        // Rare: the weighted pick keeps landing on the excluded member.
+        // Rare: the weighted pick keeps landing on an excluded member.
         $others = [];
 
         for ($position = 0; $position < $eligible; $position++) {
-            if ($this->order[$position] !== $exclude) {
+            if (! isset($banned[$this->order[$position]])) {
                 $others[] = $this->order[$position];
             }
         }
 
         if ($others === []) {
-            return $this->order[0];
+            // Everybody eligible is excluded; the ban is a preference, not a
+            // reason to leave the reply unwritten.
+            return $this->order[$rng->int(0, $eligible - 1)];
         }
 
         return $others[$rng->int(0, count($others) - 1)];

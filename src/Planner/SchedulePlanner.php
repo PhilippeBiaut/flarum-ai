@@ -40,10 +40,39 @@ class SchedulePlanner
         $pool = new AuthorPool($result->users, $activity, $config->dateStart);
 
         $times = $this->planDiscussionTimes($config, $days, $dayWeights, $rng);
-        $replyCounts = $this->planReplyCounts($config, count($times), $rng, $result);
+
+        // Each thread's shape is drawn first: it decides how many replies the
+        // thread deserves relative to the others, so it has to feed into the
+        // distribution rather than be applied on top of it.
+        $archetypes = [];
+
+        foreach (array_keys($times) as $index) {
+            $archetypes[$index] = ThreadArchetype::draw($rng, (float) $config->generation('dead_thread_share', 0.22));
+        }
+
+        // A minimum number of replies per discussion and unanswered threads are
+        // contradictory requests. The explicit setting wins - and the archetype
+        // has to change here, not just in the reply counts, or the plan would
+        // report threads as dead while handing them replies.
+        if ($config->repliesMin > 0) {
+            $revived = 0;
+
+            foreach ($archetypes as $index => $archetype) {
+                if ($archetype === ThreadArchetype::DEAD) {
+                    $archetypes[$index] = ThreadArchetype::QUICK;
+                    $revived++;
+                }
+            }
+
+            if ($revived > 0) {
+                $result->warnings[] = 'Replies-per-discussion has a minimum, so no discussion is left unanswered.';
+            }
+        }
+
+        $replyCounts = $this->planReplyCounts($config, $archetypes, $rng, $result);
 
         foreach ($times as $index => $createdAt) {
-            $author = $pool->pick($createdAt, null, $rng);
+            $author = $pool->pick($createdAt, [], $rng);
 
             if ($author === null) {
                 $result->warnings[] = 'No member available to author a discussion; planning stopped early.';
@@ -57,11 +86,13 @@ class SchedulePlanner
                 'created_at' => $createdAt,
                 'tag_path' => $tag['path'] ?? null,
                 'tag_name' => $tag['name'] ?? null,
+                'archetype' => $archetypes[$index],
                 'replies' => $this->planReplies(
                     $config,
                     $createdAt,
                     $replyCounts[$index] ?? 0,
                     $author,
+                    $archetypes[$index],
                     $pool,
                     $rng,
                     $result
@@ -216,20 +247,36 @@ class SchedulePlanner
      *
      * @return array<int, int>
      */
-    protected function planReplyCounts(PlanConfig $config, int $discussionCount, Rng $rng, PlanResult $result): array
+    protected function planReplyCounts(PlanConfig $config, array $archetypes, Rng $rng, PlanResult $result): array
     {
+        $discussionCount = count($archetypes);
+
         if ($discussionCount === 0 || $config->replies === 0) {
             return array_fill(0, max(0, $discussionCount), 0);
         }
 
-        $capacity = $discussionCount * $config->repliesMax;
-        $floor = $discussionCount * $config->repliesMin;
+        // Dead threads are held out of the distribution entirely: weighting them
+        // low would only make them unlikely, not empty.
+        $alive = [];
+
+        foreach ($archetypes as $index => $archetype) {
+            if ($archetype !== ThreadArchetype::DEAD) {
+                $alive[$index] = $rng->powerLaw(0.85) * ThreadArchetype::multiplier($archetype);
+            }
+        }
+
+        if ($alive === []) {
+            return array_fill(0, $discussionCount, 0);
+        }
+
+        $capacity = count($alive) * $config->repliesMax;
+        $floor = count($alive) * $config->repliesMin;
 
         if ($config->replies > $capacity) {
             $result->warnings[] = sprintf(
-                'Only %d replies can fit in %d discussions with a maximum of %d per discussion; %d were requested.',
+                'Only %d replies can fit in the %d discussions that get answered, with a maximum of %d each; %d were requested.',
                 $capacity,
-                $discussionCount,
+                count($alive),
                 $config->repliesMax,
                 $config->replies
             );
@@ -242,18 +289,13 @@ class SchedulePlanner
             );
         }
 
-        $weights = [];
+        $counts = array_fill(0, $discussionCount, 0);
 
-        for ($i = 0; $i < $discussionCount; $i++) {
-            $weights[$i] = $rng->powerLaw(0.85);
+        foreach (DayDistributor::distributeClamped($config->replies, $alive, $config->repliesMin, $config->repliesMax) as $index => $count) {
+            $counts[$index] = $count;
         }
 
-        return DayDistributor::distributeClamped(
-            $config->replies,
-            $weights,
-            $config->repliesMin,
-            $config->repliesMax
-        );
+        return $counts;
     }
 
     /**
@@ -264,6 +306,7 @@ class SchedulePlanner
         DateTimeImmutable $openedAt,
         int $count,
         int $opAuthor,
+        string $archetype,
         AuthorPool $pool,
         Rng $rng,
         PlanResult $result,
@@ -283,28 +326,106 @@ class SchedulePlanner
         $replies = [];
         $previous = $opAuthor;
 
+        // On a real thread the person who asked comes back: to answer a
+        // clarifying question, to report what they tried, to say thanks. How
+        // often depends on the kind of thread.
+        $authorReturns = $this->planAuthorReturns($count, $archetype, $rng);
+        $typeWeights = ThreadArchetype::typeWeights($archetype);
+
         foreach ($times as $time) {
-            $author = $pool->pick($time, $previous, $rng);
+            $position = count($replies);
+            $byAuthor = in_array($position, $authorReturns, true) && $previous !== $opAuthor;
+
+            // The thread author's returns are planned, not drawn: leaving them in
+            // the pool as well would double their real share.
+            $author = $byAuthor
+                ? $opAuthor
+                : $pool->pick($time, array_unique([$previous, $opAuthor]), $rng);
 
             if ($author === null) {
                 break;
             }
 
             $length = ReplyLength::draw($rng);
-            $position = count($replies);
+            // 0 is the opening post, 1 the first reply, and so on.
+            $target = ReplyTarget::draw($position, $rng);
+
+            // The author answering their own opening post makes no sense; send
+            // them to the most recent reply instead.
+            if ($byAuthor && $target === 0 && $position > 0) {
+                $target = $position;
+            }
 
             $replies[] = [
                 'author' => $author,
                 'created_at' => $time,
                 'words' => $length['words'],
                 'length' => $length['bucket'],
-                // 0 is the opening post, 1 the first reply, and so on.
-                'replies_to' => ReplyTarget::draw($position, $rng),
+                'replies_to' => $target,
+                'type' => ReplyType::draw(
+                    $position,
+                    $count,
+                    $target > 0,
+                    $author === $opAuthor,
+                    $rng,
+                    $typeWeights
+                ),
             ];
+
             $previous = $author;
         }
 
         return $replies;
+    }
+
+    /**
+     * Which reply slots the thread's own author takes back.
+     *
+     * Never the first one - answering your own question immediately reads as a
+     * mistake - and never two in a row, which the caller enforces.
+     *
+     * @return array<int, int>
+     */
+    protected function planAuthorReturns(int $count, string $archetype, Rng $rng): array
+    {
+        $share = ThreadArchetype::authorShare($archetype);
+
+        if ($count < 2 || $share <= 0) {
+            return [];
+        }
+
+        // Probabilistic rounding rather than max(1, ...): forcing at least one
+        // return in every thread makes the author write half the replies of
+        // every two-reply thread, which wrecks the overall share.
+        $expected = $count * $share;
+        $wanted = (int) floor($expected);
+
+        if ($rng->float() < $expected - $wanted) {
+            $wanted++;
+        }
+
+        $wanted = min($count - 1, $wanted);
+
+        if ($wanted <= 0) {
+            return [];
+        }
+
+        $slots = [];
+        $attempts = 0;
+
+        while (count($slots) < $wanted && $attempts++ < 40) {
+            // Weighted towards the back of the thread: the author replies once
+            // somebody has given them something to react to.
+            $position = $rng->int(1, $count - 1);
+
+            if (! in_array($position, $slots, true) && ! in_array($position - 1, $slots, true)) {
+                $slots[] = $position;
+            }
+        }
+
+        sort($slots);
+
+        return $slots;
     }
 
     /**

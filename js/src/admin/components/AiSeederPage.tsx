@@ -41,6 +41,7 @@ export default class AiSeederPage extends ExtensionPage<ExtensionPageAttrs> {
 
           {this.connectionSection()}
           {this.contextSection()}
+          {this.sampleSection()}
           {this.volumeSection()}
           {this.retagSection()}
           {this.previewSection()}
@@ -160,6 +161,51 @@ export default class AiSeederPage extends ExtensionPage<ExtensionPageAttrs> {
     );
   }
 
+  /**
+   * One generated thread, for a few cents, before committing to hundreds.
+   */
+  sampleSection() {
+    const { state } = this;
+    const { sample } = state;
+
+    return this.section(
+      'sample',
+      <div>
+        <div className="AiSeeder-actions">
+          <Button className="Button" icon="fas fa-flask" loading={state.sampling} onclick={() => state.makeSample()}>
+            {app.translator.trans('pbiaut-ai-seeder.admin.sample.generate')}
+          </Button>
+          <span className="helpText">{app.translator.trans('pbiaut-ai-seeder.admin.sample.help')}</span>
+        </div>
+
+        {sample && sample.title ? (
+          <div className="AiSeeder-sample">
+            <div className="AiSeeder-sample-title">{sample.title}</div>
+            <div className="AiSeeder-sample-meta">
+              {sample.author}
+              {sample.tag ? ` — ${sample.tag}` : ''}
+              {sample.usage ? ` — ${sample.usage.calls} ${extractText(app.translator.trans('pbiaut-ai-seeder.admin.preview.api_calls'))}` : ''}
+            </div>
+            <div className="AiSeeder-sample-post">{sample.opening}</div>
+
+            {(sample.replies || []).map((reply: any, index: number) => (
+              <div className={`AiSeeder-sample-reply ${reply.rejected ? 'is-rejected' : ''}`}>
+                <div className="AiSeeder-sample-meta">
+                  {reply.author} — {app.translator.trans('pbiaut-ai-seeder.admin.sample.answers', { n: reply.answers })} —{' '}
+                  <code>{reply.type}</code> — {reply.words}/{reply.target_words}{' '}
+                  {app.translator.trans('pbiaut-ai-seeder.admin.sample.words')}
+                </div>
+                <div className="AiSeeder-sample-post">
+                  {reply.rejected ? app.translator.trans('pbiaut-ai-seeder.admin.sample.rejected') : reply.content}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   volumeSection() {
     const { form } = this.state;
 
@@ -198,6 +244,7 @@ export default class AiSeederPage extends ExtensionPage<ExtensionPageAttrs> {
 
         <div className="AiSeeder-row">
           {this.formField('reply_window_days', app.translator.trans('pbiaut-ai-seeder.admin.form.reply_window'), 'number')}
+          {this.formField('dead_thread_share', app.translator.trans('pbiaut-ai-seeder.admin.form.dead_share'), 'number')}
           {this.formField('seed', app.translator.trans('pbiaut-ai-seeder.admin.form.seed'), 'number')}
         </div>
 

@@ -4,11 +4,13 @@ namespace Pbiaut\AiSeeder\Service;
 
 use Carbon\Carbon;
 use Flarum\Discussion\Discussion;
+use Flarum\Post\Post;
 use Flarum\User\User;
 use Illuminate\Database\Eloquent\Collection;
 use Pbiaut\AiSeeder\Creator\CounterRefresher;
 use Pbiaut\AiSeeder\Creator\DiscussionCreator;
 use Pbiaut\AiSeeder\Creator\ReplyCreator;
+use Pbiaut\AiSeeder\Creator\SocialSignals;
 use Pbiaut\AiSeeder\Creator\TagProvisioner;
 use Pbiaut\AiSeeder\Creator\UserCreator;
 use Pbiaut\AiSeeder\Generator\DiscussionBodyGenerator;
@@ -20,6 +22,7 @@ use Pbiaut\AiSeeder\Model\Batch;
 use Pbiaut\AiSeeder\Model\Item;
 use Pbiaut\AiSeeder\OpenAI\Client;
 use Pbiaut\AiSeeder\OpenAI\OpenAiException;
+use Pbiaut\AiSeeder\Planner\Rng;
 use Throwable;
 
 /**
@@ -45,6 +48,7 @@ class BatchRunner
         protected CounterRefresher $counters,
         protected TagProvisioner $tags,
         protected RunLogger $logs,
+        protected SocialSignals $social,
     ) {
     }
 
@@ -375,6 +379,7 @@ class BatchRunner
         $authors = [];
         $lengths = [];
         $targets = [];
+        $types = [];
 
         foreach ($items as $item) {
             $personas[] = $this->personaOf($item);
@@ -383,6 +388,7 @@ class BatchRunner
             // Which message of the thread this reply answers, decided at
             // planning time. 0 is the opening post.
             $targets[] = (int) $item->get('replies_to', 0);
+            $types[] = (string) $item->get('type', 'answer');
         }
 
         try {
@@ -395,13 +401,16 @@ class BatchRunner
                 $this->writtenReplies($batch, $parent),
                 $model,
                 $lengths,
-                $targets
+                $targets,
+                $types
             );
         } catch (OpenAiException $e) {
             $this->penalise($items, $e);
 
             return 1;
         }
+
+        $rejected = 0;
 
         foreach ($items as $index => $item) {
             $author = $authors[$index];
@@ -411,11 +420,27 @@ class BatchRunner
                 continue;
             }
 
+            $body = $bodies[$index] ?? null;
+
+            if ($body === null || trim($body) === '') {
+                // Duplicate, assistant tell, or simply missing from the answer.
+                // Left pending so the next pass regenerates it: filling the gap
+                // with a copy of another reply is what put duplicates on the
+                // forum before.
+                $item->markFailed('The reply was rejected as unusable or duplicate; it will be regenerated.');
+                $rejected++;
+                continue;
+            }
+
             try {
-                $post = $this->replyCreator->create($discussion, $bodies[$index] ?? '...', $author, $item->scheduled_at);
+                $body = $this->social->linkMentions($body, $this->participants($batch, $parent));
+
+                $post = $this->replyCreator->create($discussion, $body, $author, $item->scheduled_at);
+
+                $this->social->recordMentions($post->id, $body, $post->created_at);
 
                 $item->target_id = $post->id;
-                $item->mergePayload(['content' => $bodies[$index] ?? '', 'author' => $author->username]);
+                $item->mergePayload(['content' => $body, 'author' => $author->username]);
                 $item->status = Item::STATUS_DONE;
                 $item->error = null;
                 $item->save();
@@ -427,9 +452,32 @@ class BatchRunner
             }
         }
 
-        $log('Wrote '.$items->count().' reply/replies in "'.$parent->get('title').'".');
+        $log('Wrote '.($items->count() - $rejected).' reply/replies in "'.$parent->get('title').'"'
+            .($rejected > 0 ? ', '.$rejected.' rejected as duplicate or unusable' : '').'.');
 
         return 1;
+    }
+
+    /**
+     * Members who have already written in this thread, so a name the model used
+     * can be turned into a real mention.
+     *
+     * @return array<int, User>
+     */
+    protected function participants(Batch $batch, Item $parent): array
+    {
+        $ids = $batch->items()
+            ->where(function ($query) use ($parent) {
+                $query->where('id', $parent->id)->orWhere('parent_item_id', $parent->id);
+            })
+            ->where('status', Item::STATUS_DONE)
+            ->pluck('author_item_id')
+            ->filter()
+            ->unique();
+
+        $targets = Item::whereIn('id', $ids)->whereNotNull('target_id')->pluck('target_id');
+
+        return User::whereIn('id', $targets)->get()->all();
     }
 
     /**
@@ -557,6 +605,10 @@ class BatchRunner
         $this->counters->refreshUsers(array_map('intval', $userIds));
         $this->counters->refreshTags();
 
+        // Costs nothing and changes how the forum reads more than any prompt
+        // tweak: pages with likes on them, and members who have been seen.
+        $this->addSocialSignals($batch, array_map('intval', $userIds), $log);
+
         $batch->refresh();
         $batch->status = $batch->failed_count > 0 && $batch->totalCreated() === 0
             ? Batch::STATUS_FAILED
@@ -567,6 +619,62 @@ class BatchRunner
         $log('Batch #'.$batch->id.' finished: '.$batch->users_created.' members, '
             .$batch->discussions_created.' discussions, '.$batch->replies_created.' replies, '
             .$batch->failed_count.' failed.');
+    }
+
+    /**
+     * Likes and last-seen dates, drawn from the batch's own seed so a rerun of
+     * the same plan produces the same forum.
+     *
+     * @param  array<int, int>  $userIds
+     * @param  callable(string):void  $log
+     */
+    protected function addSocialSignals(Batch $batch, array $userIds, callable $log): void
+    {
+        if ($userIds === []) {
+            return;
+        }
+
+        $rng = new Rng($batch->seed ?: 1);
+
+        $candidates = User::whereIn('id', $userIds)
+            ->get()
+            ->map(fn (User $user) => ['id' => (int) $user->id, 'joined_at' => $user->joined_at])
+            ->all();
+
+        $postIds = $batch->items()
+            ->whereIn('type', [Item::TYPE_REPLY])
+            ->whereNotNull('target_id')
+            ->pluck('target_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        // Opening posts are worth liking too; they live on the discussion item.
+        foreach ($batch->items()->where('type', Item::TYPE_DISCUSSION)->whereNotNull('payload')->get() as $item) {
+            $firstPost = $item->get('first_post_id');
+
+            if ($firstPost) {
+                $postIds[] = (int) $firstPost;
+            }
+        }
+
+        if ($postIds !== []) {
+            $posts = Post::whereIn('id', $postIds)
+                ->get()
+                ->map(fn (Post $post) => [
+                    'id' => (int) $post->id,
+                    'user_id' => (int) $post->user_id,
+                    'created_at' => $post->created_at,
+                ])
+                ->all();
+
+            $likes = $this->social->like($posts, $candidates, $rng);
+
+            if ($likes > 0) {
+                $log('Added '.$likes.' like(s).');
+            }
+        }
+
+        $this->social->refreshLastSeen($userIds, $rng);
     }
 
     protected function fail(Batch $batch, string $message): bool

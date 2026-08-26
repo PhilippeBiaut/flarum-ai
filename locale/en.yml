@@ -5,6 +5,8 @@ pbiaut-ai-seeder:
       connection_help: The key stays on the server and is never sent to the browser of anyone but an administrator.
       context: What this forum is about
       context_help: Everything here goes into the prompts. The more precise it is, the less generic the generated content feels.
+      sample: Try it on one thread first
+      sample_help: Generates a single complete thread and shows it here. Nothing is written to the forum.
       volumes: Volumes and period
       volumes_help: How much to create, over which period, and how the activity should be shaped.
       preview: Day-by-day plan
@@ -61,6 +63,7 @@ pbiaut-ai-seeder:
       replies_min: Min replies per discussion
       replies_max: Max replies per discussion
       reply_window: Reply window (days)
+      dead_share: "Share of threads with no reply (0-1)"
       seed: Seed (leave empty for a new one)
       compute_plan: Compute the plan
       compute_plan_help: Free and instant. No OpenAI call.
@@ -81,6 +84,13 @@ pbiaut-ai-seeder:
       estimate: "About {calls} API call(s), cost: {cost}."
       start: Tag them
       confirm: "About to classify {count} existing discussions with around {calls} OpenAI calls. Tags will be added to real threads. Continue?"
+
+    sample:
+      generate: Generate one sample thread
+      help: About four API calls. The cheapest way to check the tone and the language before committing to a full run.
+      answers: "answers [{n}]"
+      words: words
+      rejected: Rejected as a duplicate or unusable; a real run would regenerate it.
 
     preview:
       members: Members

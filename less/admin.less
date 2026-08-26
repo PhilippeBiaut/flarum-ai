@@ -315,3 +315,46 @@
     font-size: 13px;
   }
 }
+
+// Sample thread ---------------------------------------------------------------
+
+.AiSeederPage {
+  .AiSeeder-sample {
+    margin-top: 12px;
+    padding: 14px 16px;
+    background: var(--control-bg);
+    border-radius: var(--border-radius);
+  }
+
+  .AiSeeder-sample-title {
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  .AiSeeder-sample-meta {
+    font-size: 12px;
+    color: var(--muted-color);
+    margin: 2px 0 6px;
+
+    code {
+      font-size: 11px;
+    }
+  }
+
+  .AiSeeder-sample-post {
+    white-space: pre-wrap;
+    font-size: 14px;
+    line-height: 1.55;
+    margin-bottom: 14px;
+  }
+
+  .AiSeeder-sample-reply {
+    padding-left: 14px;
+    border-left: 3px solid var(--body-bg);
+
+    &.is-rejected {
+      opacity: 0.6;
+      border-left-color: #d9534f;
+    }
+  }
+}
