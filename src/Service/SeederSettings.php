@@ -135,6 +135,19 @@ class SeederSettings
     }
 
     /**
+     * How many OpenAI calls one browser-driven slice may make.
+     *
+     * Much smaller than callsPerRun(): that budget is spent inside a queue
+     * worker with no time limit, this one inside an HTTP request that
+     * max_execution_time will cut off. Three calls is roughly 15-45 seconds,
+     * which fits comfortably under even a 60-second limit.
+     */
+    public function callsPerRequest(): int
+    {
+        return min(20, max(1, (int) $this->get('calls_per_request', 3)));
+    }
+
+    /**
      * Last used generation context, so the admin form comes back pre-filled.
      *
      * @return array<string, mixed>

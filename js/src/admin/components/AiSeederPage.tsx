@@ -80,6 +80,7 @@ export default class AiSeederPage extends ExtensionPage<ExtensionPageAttrs> {
 
         <div className="AiSeeder-row">
           {this.numberField('pbiaut-ai-seeder.calls_per_run', 'calls_per_run', 12)}
+          {this.numberField('pbiaut-ai-seeder.calls_per_request', 'calls_per_request', 3)}
           {this.numberField('pbiaut-ai-seeder.requests_per_minute', 'requests_per_minute', 0)}
           {this.numberField('pbiaut-ai-seeder.max_tokens', 'max_tokens', 4000)}
         </div>

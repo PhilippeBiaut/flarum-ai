@@ -24,6 +24,7 @@ pbiaut-ai-seeder:
       base_url_label: URL de base de l'API
       base_url_help: Laissez vide pour OpenAI. À changer pour Azure OpenAI, OpenRouter, LiteLLM ou un serveur local.
       calls_per_run: Appels API par job de file
+      calls_per_request: Appels API par tranche pilotée par le navigateur
       requests_per_minute: Requêtes par minute max (0 = illimité)
       max_tokens: Tokens max par réponse
       temperature: Température

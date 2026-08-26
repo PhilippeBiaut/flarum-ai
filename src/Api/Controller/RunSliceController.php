@@ -4,6 +4,7 @@ namespace Pbiaut\AiSeeder\Api\Controller;
 
 use Pbiaut\AiSeeder\Api\BatchPresenter;
 use Pbiaut\AiSeeder\Service\QueueInspector;
+use Pbiaut\AiSeeder\Service\SeederSettings;
 use Pbiaut\AiSeeder\Service\RunLogger;
 use Pbiaut\AiSeeder\Service\SliceRunner;
 use Psr\Http\Message\ServerRequestInterface;
@@ -23,6 +24,7 @@ class RunSliceController extends AbstractSeederController
         protected BatchPresenter $presenter,
         protected QueueInspector $queues,
         protected RunLogger $logs,
+        protected SeederSettings $settings,
     ) {
     }
 
@@ -30,8 +32,13 @@ class RunSliceController extends AbstractSeederController
     {
         $batch = $this->findBatch($request);
 
+        // Best effort: on hosts that allow it this removes the ceiling
+        // entirely. Where it is disabled, the small per-request budget below is
+        // what keeps the slice inside max_execution_time.
+        @set_time_limit(0);
+
         try {
-            $more = $this->slices->run($batch);
+            $more = $this->slices->run($batch, $this->settings->callsPerRequest());
         } catch (Throwable $e) {
             $this->logs->error($batch->id, $e->getMessage());
 

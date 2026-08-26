@@ -24,7 +24,7 @@ class SliceRunner
     /**
      * @return bool  true when work remains
      */
-    public function run(Batch $batch): bool
+    public function run(Batch $batch, ?int $budget = null): bool
     {
         if (in_array($batch->status, [Batch::STATUS_REVERTING, Batch::STATUS_REVERTED], true)) {
             return $batch->status === Batch::STATUS_REVERTED ? false : $this->revert->run($batch);
@@ -35,7 +35,7 @@ class SliceRunner
         }
 
         return $batch->isTagging()
-            ? $this->tagging->run($batch)
-            : $this->generation->run($batch);
+            ? $this->tagging->run($batch, null, $budget)
+            : $this->generation->run($batch, null, $budget);
     }
 }

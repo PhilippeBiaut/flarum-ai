@@ -42,7 +42,7 @@ class TaggingRunner
      * @param  callable(string):void|null  $log
      * @return bool  true when work remains
      */
-    public function run(Batch $batch, ?callable $log = null): bool
+    public function run(Batch $batch, ?callable $log = null, ?int $budget = null): bool
     {
         $this->retryAfter = 2;
 
@@ -80,7 +80,7 @@ class TaggingRunner
         $batch->save();
 
         $this->client->resetUsage();
-        $budget = $this->settings->callsPerRun();
+        $budget ??= $this->settings->callsPerRun();
         $requeue = false;
 
         try {
