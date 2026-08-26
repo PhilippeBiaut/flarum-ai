@@ -42,6 +42,7 @@ export default class AiSeederPage extends ExtensionPage<ExtensionPageAttrs> {
           {this.connectionSection()}
           {this.contextSection()}
           {this.volumeSection()}
+          {this.retagSection()}
           {this.previewSection()}
           {this.runSection()}
           {this.historySection()}
@@ -208,6 +209,108 @@ export default class AiSeederPage extends ExtensionPage<ExtensionPageAttrs> {
         </div>
       </div>
     );
+  }
+
+  /**
+   * Classifies discussions that already exist, using the same tag list as
+   * above. Nothing is written or edited: only tag links are added.
+   */
+  retagSection() {
+    const { state } = this;
+    const { retag } = state;
+
+    return this.section(
+      'retag',
+      <div>
+        <div className="AiSeeder-row">
+          <div className="Form-group">
+            <label>{app.translator.trans('pbiaut-ai-seeder.admin.retag.scope')}</label>
+            <Select
+              value={retag.scope}
+              options={{
+                untagged: extractText(app.translator.trans('pbiaut-ai-seeder.admin.retag.scope_untagged')),
+                all: extractText(app.translator.trans('pbiaut-ai-seeder.admin.retag.scope_all')),
+              }}
+              onchange={(value: string) => (retag.scope = value)}
+            />
+          </div>
+          {this.retagField('date_start', app.translator.trans('pbiaut-ai-seeder.admin.retag.date_start'), 'date')}
+          {this.retagField('date_end', app.translator.trans('pbiaut-ai-seeder.admin.retag.date_end'), 'date')}
+          {this.retagField('limit', app.translator.trans('pbiaut-ai-seeder.admin.retag.limit'), 'number')}
+        </div>
+
+        {retag.scope === 'all' ? (
+          <Alert type="warning" dismissible={false}>
+            {app.translator.trans('pbiaut-ai-seeder.admin.retag.scope_all_warning')}
+          </Alert>
+        ) : null}
+
+        <div className="AiSeeder-actions">
+          <Button className="Button" icon="fas fa-search" loading={state.counting} onclick={() => state.countRetag()}>
+            {app.translator.trans('pbiaut-ai-seeder.admin.retag.count')}
+          </Button>
+
+          {retag.matched !== null ? (
+            <span className="helpText">
+              {app.translator.trans('pbiaut-ai-seeder.admin.retag.matched', { count: retag.matched })}
+            </span>
+          ) : null}
+        </div>
+
+        {retag.matched !== null && retag.matched > 0 ? (
+          <div className="AiSeeder-actions">
+            <Button className="Button Button--primary" icon="fas fa-tags" loading={state.starting} onclick={() => this.confirmRetag()}>
+              {app.translator.trans('pbiaut-ai-seeder.admin.retag.start')}
+            </Button>
+            {retag.estimate ? (
+              <span className="helpText">
+                {app.translator.trans('pbiaut-ai-seeder.admin.retag.estimate', {
+                  calls: retag.estimate.api_calls,
+                  cost:
+                    retag.estimate.cost === null
+                      ? extractText(app.translator.trans('pbiaut-ai-seeder.admin.preview.cost_unknown'))
+                      : `${retag.estimate.cost} ${retag.estimate.currency}`,
+                })}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  retagField(key: string, label: Mithril.Children, type = 'text') {
+    const { retag } = this.state;
+
+    return (
+      <div className="Form-group">
+        <label>{label}</label>
+        <input
+          className="FormControl"
+          type={type}
+          value={(retag as any)[key] ?? ''}
+          oninput={(e: InputEvent) => {
+            const value = (e.target as HTMLInputElement).value;
+            (retag as any)[key] = type === 'number' ? (value === '' ? '' : Number(value)) : value;
+            // Any change invalidates the count shown next to the button.
+            retag.matched = null;
+          }}
+        />
+      </div>
+    );
+  }
+
+  confirmRetag() {
+    const { retag } = this.state;
+
+    const message = extractText(
+      app.translator.trans('pbiaut-ai-seeder.admin.retag.confirm', {
+        count: retag.matched ?? 0,
+        calls: retag.estimate?.api_calls ?? 0,
+      })
+    );
+
+    if (confirm(message)) this.state.startRetag();
   }
 
   previewSection() {

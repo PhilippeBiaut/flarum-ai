@@ -13,6 +13,8 @@ pbiaut-ai-seeder:
       run_help: La génération tourne en arrière-plan, par petits paquets d'appels API.
       history: Historique
       history_help: Chaque génération peut être rouverte, et tout ce qu'elle a créé supprimé en un clic.
+      retag: Étiqueter les discussions existantes
+      retag_help: Classe les fils déjà présents sur le forum dans la liste d'étiquettes ci-dessus. Rien n'est écrit, modifié ni supprimé : seules des étiquettes sont ajoutées.
 
     settings:
       api_key_label: Clé API OpenAI
@@ -65,6 +67,20 @@ pbiaut-ai-seeder:
       start: Lancer la génération
       start_help: "Tourne en arrière-plan, environ {runs} job(s) de file."
       start_confirm: "Vous allez générer {count} messages avec environ {calls} appels OpenAI, facturés sur votre compte. Continuer ?"
+
+    retag:
+      scope: Quelles discussions
+      scope_untagged: Uniquement celles sans aucune étiquette
+      scope_all: Toutes, étiquetées ou non
+      scope_all_warning: Cela peut ajouter des étiquettes à des discussions déjà classées à la main. Les étiquettes existantes ne sont jamais retirées, et l'annulation ne défait que ce que cette exécution a ajouté.
+      date_start: "Créées après (facultatif)"
+      date_end: "Créées avant (facultatif)"
+      limit: "Limite (0 = sans limite)"
+      count: Compter les discussions
+      matched: "{count} discussion(s) correspondent."
+      estimate: "Environ {calls} appel(s) API, coût : {cost}."
+      start: Les étiqueter
+      confirm: "Vous allez classer {count} discussions existantes avec environ {calls} appels OpenAI. Des étiquettes seront ajoutées à de vrais fils. Continuer ?"
 
     preview:
       members: Membres

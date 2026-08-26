@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Flarum\Discussion\Discussion;
 use Flarum\Post\Post;
 use Flarum\User\User;
+use Illuminate\Database\ConnectionInterface;
 use Pbiaut\AiSeeder\Creator\CounterRefresher;
 use Pbiaut\AiSeeder\Model\Batch;
 use Pbiaut\AiSeeder\Model\Item;
@@ -23,8 +24,10 @@ class RevertRunner
 {
     public const CHUNK = 100;
 
-    public function __construct(protected CounterRefresher $counters)
-    {
+    public function __construct(
+        protected ConnectionInterface $db,
+        protected CounterRefresher $counters,
+    ) {
     }
 
     /**
@@ -40,7 +43,7 @@ class RevertRunner
 
         $tagIds = $this->plannedTagIds($batch);
 
-        foreach ([Item::TYPE_REPLY, Item::TYPE_DISCUSSION, Item::TYPE_USER] as $type) {
+        foreach ([Item::TYPE_TAGGING, Item::TYPE_REPLY, Item::TYPE_DISCUSSION, Item::TYPE_USER] as $type) {
             $items = $batch->items()
                 ->where('type', $type)
                 ->orderByDesc('id')
@@ -90,6 +93,14 @@ class RevertRunner
             return;
         }
 
+        // A tagging item points at somebody else's discussion. Undoing it means
+        // removing the tag links this run added, and nothing more.
+        if ($item->type === Item::TYPE_TAGGING) {
+            $this->detachTags($item);
+
+            return;
+        }
+
         $model = match ($item->type) {
             Item::TYPE_REPLY => Post::find($item->target_id),
             Item::TYPE_DISCUSSION => Discussion::find($item->target_id),
@@ -106,9 +117,36 @@ class RevertRunner
         $model?->delete();
     }
 
+    /**
+     * Removes only the tag links this run added, recorded per item at the time.
+     * Tags the discussion already carried are left untouched.
+     */
+    protected function detachTags(Item $item): void
+    {
+        $added = (array) $item->get('added_tag_ids', []);
+
+        if ($added === []) {
+            return;
+        }
+
+        $this->db->table('discussion_tag')
+            ->where('discussion_id', $item->target_id)
+            ->whereIn('tag_id', array_map('intval', $added))
+            ->delete();
+    }
+
     protected function syncCounters(Batch $batch): void
     {
         $batch->refresh();
+
+        if ($batch->isTagging()) {
+            // A tagging run counts tagged discussions in the same column.
+            $batch->discussions_created = $batch->items()->where('type', Item::TYPE_TAGGING)->count();
+            $batch->save();
+
+            return;
+        }
+
         $batch->users_created = $batch->items()->where('type', Item::TYPE_USER)->whereNotNull('target_id')->count();
         $batch->discussions_created = $batch->items()->where('type', Item::TYPE_DISCUSSION)->whereNotNull('target_id')->count();
         $batch->replies_created = $batch->items()->where('type', Item::TYPE_REPLY)->whereNotNull('target_id')->count();

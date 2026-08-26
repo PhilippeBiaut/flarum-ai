@@ -22,6 +22,7 @@ class BatchPresenter
     {
         $data = [
             'id' => $batch->id,
+            'mode' => $batch->mode ?: Batch::MODE_GENERATE,
             'status' => $batch->status,
             'model' => $batch->model,
             'seed' => $batch->seed,

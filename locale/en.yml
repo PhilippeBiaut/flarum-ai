@@ -13,6 +13,8 @@ pbiaut-ai-seeder:
       run_help: Generation happens in the background, a few API calls at a time.
       history: History
       history_help: Every run can be reopened, and everything it created can be removed in one click.
+      retag: Tag existing discussions
+      retag_help: Sorts threads already on the forum into the tag list above. Nothing is written, edited or deleted: only tags are added.
 
     settings:
       api_key_label: OpenAI API key
@@ -65,6 +67,20 @@ pbiaut-ai-seeder:
       start: Generate
       start_help: "Runs in the background, roughly {runs} queue job(s)."
       start_confirm: "About to generate {count} posts with around {calls} OpenAI calls. This will be billed to your account. Continue?"
+
+    retag:
+      scope: Which discussions
+      scope_untagged: Only those with no tag at all
+      scope_all: All of them, tagged or not
+      scope_all_warning: This may add tags to discussions somebody already categorised by hand. Tags already present are never removed, and a rollback undoes only what this run added.
+      date_start: "Created after (optional)"
+      date_end: "Created before (optional)"
+      limit: "Limit (0 = no limit)"
+      count: Count the discussions
+      matched: "{count} discussion(s) match."
+      estimate: "About {calls} API call(s), cost: {cost}."
+      start: Tag them
+      confirm: "About to classify {count} existing discussions with around {calls} OpenAI calls. Tags will be added to real threads. Continue?"
 
     preview:
       members: Members

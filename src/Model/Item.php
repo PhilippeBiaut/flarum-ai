@@ -31,6 +31,13 @@ class Item extends AbstractModel
     public const TYPE_DISCUSSION = 'discussion';
     public const TYPE_REPLY = 'reply';
 
+    /**
+     * Tagging an existing discussion. Unlike the others, target_id points at
+     * something the seeder did not create, so a rollback must remove only the
+     * tags it added rather than delete anything.
+     */
+    public const TYPE_TAGGING = 'tagging';
+
     public const STATUS_PENDING = 'pending';
     public const STATUS_DONE = 'done';
     public const STATUS_FAILED = 'failed';

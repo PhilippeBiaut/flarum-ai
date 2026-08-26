@@ -6,6 +6,7 @@ use Flarum\Queue\AbstractJob;
 use Illuminate\Contracts\Queue\Queue;
 use Pbiaut\AiSeeder\Model\Batch;
 use Pbiaut\AiSeeder\Service\BatchRunner;
+use Pbiaut\AiSeeder\Service\TaggingRunner;
 
 /**
  * Processes one slice of a batch and re-queues itself while work remains.
@@ -21,13 +22,15 @@ class ProcessBatchJob extends AbstractJob
         parent::__construct();
     }
 
-    public function handle(BatchRunner $runner, Queue $queue): void
+    public function handle(BatchRunner $generator, TaggingRunner $tagger, Queue $queue): void
     {
         $batch = Batch::find($this->batchId);
 
         if ($batch === null) {
             return;
         }
+
+        $runner = $batch->isTagging() ? $tagger : $generator;
 
         if ($runner->run($batch)) {
             // A small delay between slices keeps a rate-limited or failing run

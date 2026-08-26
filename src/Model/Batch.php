@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property int $id
  * @property string $status
+ * @property string $mode
  * @property array $config
  * @property array|null $plan_summary
  * @property string|null $model
@@ -30,6 +31,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Batch extends AbstractModel
 {
+    /** Creates members, discussions and replies. */
+    public const MODE_GENERATE = 'generate';
+
+    /** Leaves content alone and only tags discussions that already exist. */
+    public const MODE_TAG = 'tag';
+
     public const STATUS_PLANNED = 'planned';
     public const STATUS_QUEUED = 'queued';
     public const STATUS_RUNNING = 'running';
@@ -70,6 +77,11 @@ class Batch extends AbstractModel
     public function isHalted(): bool
     {
         return in_array($this->status, self::HALTED, true);
+    }
+
+    public function isTagging(): bool
+    {
+        return $this->mode === self::MODE_TAG;
     }
 
     public function totalPlanned(): int

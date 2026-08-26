@@ -4,6 +4,7 @@ namespace Pbiaut\AiSeeder\Service;
 
 use Pbiaut\AiSeeder\Generator\PersonaGenerator;
 use Pbiaut\AiSeeder\Generator\ReplyBundleGenerator;
+use Pbiaut\AiSeeder\Generator\TagClassifier;
 use Pbiaut\AiSeeder\Generator\TopicGenerator;
 use Pbiaut\AiSeeder\Planner\PlanConfig;
 use Pbiaut\AiSeeder\Planner\PlanResult;
@@ -31,6 +32,12 @@ class CostEstimator
     private const REPLY_PROMPT = 900;
     private const REPLY_PROMPT_PER_PERSONA = 90;
     private const REPLY_OUTPUT_PER_REPLY = 140;
+
+    // Classifying existing discussions: the category list plus, per thread, a
+    // title and a 500-character excerpt in, one short line out.
+    private const CLASSIFY_PROMPT = 400;
+    private const CLASSIFY_PER_THREAD = 180;
+    private const CLASSIFY_OUTPUT_PER_THREAD = 20;
 
     public function __construct(protected SeederSettings $settings)
     {
@@ -99,6 +106,39 @@ class CostEstimator
             'accuracy' => 'Estimate only: real token usage depends on the model and on how verbose it is.',
             'prices_missing' => ! $hasPrices,
             'seed' => $config->seed,
+        ];
+    }
+
+    /**
+     * Cost of classifying existing discussions: one call per batch of threads,
+     * each contributing a title and a short excerpt in, and one line out.
+     *
+     * @return array<string, mixed>
+     */
+    public function estimateTagging(int $discussions): array
+    {
+        $calls = (int) ceil($discussions / TagClassifier::BATCH_SIZE);
+
+        $tokensIn = $calls * self::CLASSIFY_PROMPT + $discussions * self::CLASSIFY_PER_THREAD;
+        $tokensOut = $discussions * self::CLASSIFY_OUTPUT_PER_THREAD;
+
+        $priceIn = $this->settings->priceInput();
+        $priceOut = $this->settings->priceOutput();
+        $hasPrices = $priceIn > 0 || $priceOut > 0;
+
+        return [
+            'api_calls' => $calls,
+            'calls_breakdown' => ['classify' => $calls],
+            'tokens_in' => $tokensIn,
+            'tokens_out' => $tokensOut,
+            'cost' => $hasPrices
+                ? round(($tokensIn / 1_000_000) * $priceIn + ($tokensOut / 1_000_000) * $priceOut, 2)
+                : null,
+            'currency' => $this->settings->currency(),
+            'queue_runs' => (int) ceil($calls / max(1, $this->settings->callsPerRun())),
+            'accuracy' => 'Estimate only: real token usage depends on how long the threads are.',
+            'prices_missing' => ! $hasPrices,
+            'seed' => 0,
         ];
     }
 

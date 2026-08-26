@@ -97,6 +97,18 @@ export default class SeederState {
   planning = false;
   starting = false;
 
+  /** Tagging of discussions that already exist. */
+  retag: {
+    scope: string;
+    date_start: string;
+    date_end: string;
+    limit: number | '';
+    matched: number | null;
+    estimate: Estimate | null;
+  } = { scope: 'untagged', date_start: '', date_end: '', limit: '', matched: null, estimate: null };
+
+  counting = false;
+
   batches: Batch[] = [];
   active: Batch | null = null;
 
@@ -239,6 +251,60 @@ export default class SeederState {
       .then(({ batch }) => {
         this.active = batch;
         this.preview = null;
+        this.startPolling();
+        this.loadBatches();
+      })
+      .catch((e) => this.fail(e))
+      .finally(() => {
+        this.starting = false;
+        m.redraw();
+      });
+  }
+
+  /** The tagging run shares the forum context and tag list with generation. */
+  private retagPayload(): Record<string, any> {
+    return {
+      mode: 'tag',
+      tags: this.form.tags,
+      model: this.form.model,
+      language: this.form.language,
+      theme: this.form.theme,
+      tone: this.form.tone,
+      audience: this.form.audience,
+      scope: this.retag.scope,
+      date_start: this.retag.date_start || undefined,
+      date_end: this.retag.date_end || undefined,
+      limit: Number(this.retag.limit) || 0,
+    };
+  }
+
+  /** Dry run: how many discussions match, and what classifying them costs. */
+  countRetag(): Promise<void> {
+    this.counting = true;
+    this.error = null;
+
+    return app
+      .request<any>({ method: 'POST', url: this.url('/plan'), body: this.retagPayload() })
+      .then((result) => {
+        this.retag.matched = result.matched ?? 0;
+        this.retag.estimate = result.estimate ?? null;
+      })
+      .catch((e) => this.fail(e))
+      .finally(() => {
+        this.counting = false;
+        m.redraw();
+      });
+  }
+
+  startRetag(): Promise<void> {
+    this.starting = true;
+    this.error = null;
+
+    return app
+      .request<{ batch: Batch }>({ method: 'POST', url: this.url('/batches'), body: this.retagPayload() })
+      .then(({ batch }) => {
+        this.active = batch;
+        this.retag.matched = null;
         this.startPolling();
         this.loadBatches();
       })

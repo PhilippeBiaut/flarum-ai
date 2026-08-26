@@ -10,6 +10,7 @@ use Pbiaut\AiSeeder\Job\ProcessBatchJob;
 use Pbiaut\AiSeeder\Job\RevertBatchJob;
 use Pbiaut\AiSeeder\Model\Batch;
 use Pbiaut\AiSeeder\Model\Item;
+use Pbiaut\AiSeeder\Planner\InvalidConfigException;
 use Pbiaut\AiSeeder\Planner\PlanConfig;
 use Pbiaut\AiSeeder\Planner\PlanResult;
 use Pbiaut\AiSeeder\Planner\SchedulePlanner;
@@ -40,13 +41,64 @@ class BatchService
      */
     public function preview(array $config): array
     {
+        if ($this->isTagging($config)) {
+            return $this->previewTagging($config);
+        }
+
         $planConfig = PlanConfig::fromArray($config, $this->settings->timezone());
         $plan = $this->planner->plan($planConfig);
 
         return array_merge($plan->toSummaryArray(), [
+            'mode' => Batch::MODE_GENERATE,
             'config' => $planConfig->toArray(),
             'estimate' => $this->estimator->estimate($planConfig, $plan),
         ]);
+    }
+
+    /**
+     * Counts the discussions a tagging run would look at, and what classifying
+     * them would cost. No OpenAI call, nothing written.
+     *
+     * @param  array<string, mixed>  $config
+     * @return array<string, mixed>
+     */
+    protected function previewTagging(array $config): array
+    {
+        $planConfig = PlanConfig::fromArray(array_merge($config, [
+            // The volume fields are meaningless in this mode; satisfy the
+            // validator without asking the admin to fill them in.
+            'users' => 0, 'discussions' => 0, 'replies' => 0,
+        ]), $this->settings->timezone());
+
+        $errors = [];
+
+        if ($planConfig->tags === []) {
+            $errors['tags'] = 'at least one tag is required to classify into';
+        }
+
+        $scope = (string) ($config['scope'] ?? DiscussionScope::UNTAGGED);
+
+        if (! in_array($scope, DiscussionScope::SCOPES, true)) {
+            $errors['scope'] = 'must be one of '.implode(', ', DiscussionScope::SCOPES);
+        }
+
+        if ($errors !== []) {
+            throw new InvalidConfigException($errors);
+        }
+
+        $matched = DiscussionScope::count($config);
+
+        return [
+            'mode' => Batch::MODE_TAG,
+            'matched' => $matched,
+            'scope' => $scope,
+            'tags' => array_column($planConfig->tags, 'path'),
+            'config' => array_merge($planConfig->toArray(), ['mode' => Batch::MODE_TAG, 'scope' => $scope]),
+            'estimate' => $this->estimator->estimateTagging($matched),
+            'warnings' => [],
+            'days' => [],
+            'totals' => [],
+        ];
     }
 
     /**
@@ -54,11 +106,85 @@ class BatchService
      */
     public function create(array $config): Batch
     {
+        if ($this->isTagging($config)) {
+            return $this->createTagging($config);
+        }
+
+        return $this->createGeneration($config);
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    protected function isTagging(array $config): bool
+    {
+        return ($config['mode'] ?? Batch::MODE_GENERATE) === Batch::MODE_TAG;
+    }
+
+    /**
+     * One item per discussion to classify, so the run is resumable and each
+     * thread's outcome is traced individually.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    protected function createTagging(array $config): Batch
+    {
+        $preview = $this->previewTagging($config);
+
+        $batch = $this->db->transaction(function () use ($preview, $config) {
+            $batch = new Batch();
+            $batch->mode = Batch::MODE_TAG;
+            $batch->status = Batch::STATUS_QUEUED;
+            $batch->config = $preview['config'];
+            $batch->plan_summary = ['matched' => $preview['matched'], 'tags' => $preview['tags']];
+            $batch->model = (string) ($config['model'] ?? $this->settings->model());
+            $batch->discussions_planned = $preview['matched'];
+            $batch->created_at = Carbon::now();
+            $batch->save();
+
+            $query = DiscussionScope::query($config);
+            $limit = DiscussionScope::limit($config);
+
+            if ($limit > 0) {
+                $query->limit($limit);
+            }
+
+            $rows = [];
+            $position = 0;
+
+            foreach ($query->pluck('id') as $discussionId) {
+                $rows[] = [
+                    'batch_id' => $batch->id,
+                    'type' => Item::TYPE_TAGGING,
+                    'target_id' => (int) $discussionId,
+                    'scheduled_at' => Carbon::now()->format('Y-m-d H:i:s'),
+                    'position' => $position++,
+                    'status' => Item::STATUS_PENDING,
+                ];
+            }
+
+            $this->insertRows($rows);
+
+            return $batch;
+        });
+
+        $this->settings->rememberConfig($preview['config']);
+        $this->queue->push(new ProcessBatchJob($batch->id));
+
+        return $batch;
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    protected function createGeneration(array $config): Batch
+    {
         $planConfig = PlanConfig::fromArray($config, $this->settings->timezone());
         $plan = $this->planner->plan($planConfig);
 
         $batch = $this->db->transaction(function () use ($planConfig, $plan) {
             $batch = new Batch();
+            $batch->mode = Batch::MODE_GENERATE;
             $batch->status = Batch::STATUS_QUEUED;
             $batch->config = $planConfig->toArray();
             $batch->plan_summary = $plan->toSummaryArray();
