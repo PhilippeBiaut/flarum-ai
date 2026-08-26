@@ -726,6 +726,100 @@ $t->test('ReplyQuality catches duplicates and assistant tells', function (Runner
     $t->ok($quality->reject('ok', []) !== null, 'a two-letter answer is rejected');
 });
 
+$t->test('voice quirks never break mentions, code, links or quotes', function (Runner $t): void {
+    $quirks = new Pbiaut\AiSeeder\Generator\VoiceQuirks();
+
+    $text = "Éric, regarde @\"Éric Dupré\"#42 : lance `sudo systemctl restart nginx`,\n"
+        ."> comme dit plus haut\n"
+        ."et vérifie sur https://Example.COM/Docs/Été avant de râler.";
+
+    $all = [
+        Pbiaut\AiSeeder\Generator\VoiceQuirks::LOWERCASE,
+        Pbiaut\AiSeeder\Generator\VoiceQuirks::NO_ACCENTS,
+        Pbiaut\AiSeeder\Generator\VoiceQuirks::TYPOS,
+        Pbiaut\AiSeeder\Generator\VoiceQuirks::CAPS_EMPHASIS,
+        Pbiaut\AiSeeder\Generator\VoiceQuirks::MOBILE,
+    ];
+
+    foreach ($all as $quirk) {
+        $out = $quirks->apply($text, [$quirk], new Rng(11));
+
+        $t->ok(str_contains($out, '@"Éric Dupré"#42'), "$quirk leaves the mention intact");
+        $t->ok(str_contains($out, '`sudo systemctl restart nginx`'), "$quirk leaves the code span intact");
+        $t->ok(str_contains($out, 'https://Example.COM/Docs/Été'), "$quirk leaves the link intact");
+        $t->ok(str_contains($out, '> comme dit plus haut'), "$quirk leaves the quoted line intact");
+    }
+});
+
+$t->test('voice quirks actually change the prose, and reproducibly', function (Runner $t): void {
+    $quirks = new Pbiaut\AiSeeder\Generator\VoiceQuirks();
+    $text = 'Chez moi la mise à jour a cassé le montage réseau. Il fallait recréer le point de montage.';
+
+    $lower = $quirks->apply($text, [Pbiaut\AiSeeder\Generator\VoiceQuirks::LOWERCASE], new Rng(3));
+    $t->ok($lower === mb_strtolower($text), 'lowercase applies to the whole message');
+
+    $plain = $quirks->apply($text, [Pbiaut\AiSeeder\Generator\VoiceQuirks::NO_ACCENTS], new Rng(3));
+    $t->ok(! str_contains($plain, 'à') && ! str_contains($plain, 'é'), 'accents are gone');
+    $t->ok(str_contains($plain, 'casse le montage reseau'), 'and the words survive');
+
+    $t->same(
+        $quirks->apply($text, [Pbiaut\AiSeeder\Generator\VoiceQuirks::TYPOS], new Rng(9)),
+        $quirks->apply($text, [Pbiaut\AiSeeder\Generator\VoiceQuirks::TYPOS], new Rng(9)),
+        'the same seed produces the same typos'
+    );
+
+    $t->same($text, $quirks->apply($text, [], new Rng(3)), 'a member with no quirks is left alone');
+});
+
+$t->test('most members write plainly, a minority have habits', function (Runner $t): void {
+    $rng = new Rng(2024);
+    $plain = 0;
+    $tooMany = 0;
+
+    for ($i = 0; $i < 400; $i++) {
+        $drawn = Pbiaut\AiSeeder\Generator\VoiceQuirks::draw($rng);
+
+        if ($drawn === []) {
+            $plain++;
+        }
+
+        if (count($drawn) > 2) {
+            $tooMany++;
+        }
+    }
+
+    $t->ok($plain > 140 && $plain < 260, "roughly half of members write plainly (got $plain/400)");
+    $t->same(0, $tooMany, 'nobody gets more than two habits');
+});
+
+$t->test('some members stop coming, and never post afterwards', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config(['users' => 60, 'discussions' => 100, 'replies' => 700]));
+
+    $departed = count(array_filter($plan->users, fn (array $user) => ($user['left_at'] ?? null) !== null));
+
+    $t->ok($departed > 5, "a real share of members leave during the period (got $departed/60)");
+    $t->ok($departed < 45, 'but most are still around at the end');
+
+    $posthumous = 0;
+
+    foreach ($plan->discussions as $discussion) {
+        foreach ($discussion['replies'] as $reply) {
+            $leftAt = $plan->users[$reply['author']]['left_at'] ?? null;
+
+            if ($leftAt !== null && $reply['created_at'] > $leftAt) {
+                $posthumous++;
+            }
+        }
+    }
+
+    // The pool falls back to anyone eligible when everybody available is
+    // excluded, so this is a strong preference rather than an absolute.
+    $t->ok(
+        $posthumous < totalReplies($plan) * 0.05,
+        "almost nobody posts after leaving (got $posthumous)"
+    );
+});
+
 $t->test('Rng is reproducible and bounded', function (Runner $t): void {
     $a = new Rng(99);
     $b = new Rng(99);

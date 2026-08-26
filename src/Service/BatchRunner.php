@@ -18,6 +18,7 @@ use Pbiaut\AiSeeder\Generator\GenerationContext;
 use Pbiaut\AiSeeder\Generator\PersonaGenerator;
 use Pbiaut\AiSeeder\Generator\ReplyBundleGenerator;
 use Pbiaut\AiSeeder\Generator\TopicGenerator;
+use Pbiaut\AiSeeder\Generator\VoiceQuirks;
 use Pbiaut\AiSeeder\Model\Batch;
 use Pbiaut\AiSeeder\Model\Item;
 use Pbiaut\AiSeeder\OpenAI\Client;
@@ -49,6 +50,7 @@ class BatchRunner
         protected TagProvisioner $tags,
         protected RunLogger $logs,
         protected SocialSignals $social,
+        protected VoiceQuirks $voices,
     ) {
     }
 
@@ -177,7 +179,13 @@ class BatchRunner
         $taken = User::query()->pluck('username')->all();
 
         try {
-            $personas = $this->personas->generate($items->count(), $context, $taken, $model);
+            $personas = $this->personas->generate(
+                $items->count(),
+                $context,
+                $taken,
+                $model,
+                new Rng(($batch->seed ?: 1) + $items->first()->id)
+            );
         } catch (OpenAiException $e) {
             $this->penalise($items, $e);
 
@@ -299,6 +307,8 @@ class BatchRunner
             // missing, parent first. Returns both ids for a nested path, so the
             // discussion carries its primary tag as well as the child.
             $tagIds = $this->tags->resolve((string) $item->get('tag_path', ''));
+
+            $content = $this->inVoice($content, $this->personaOf($item), $batch, $item);
 
             $discussion = $this->discussionCreator->create(
                 (string) $item->get('title'),
@@ -434,6 +444,7 @@ class BatchRunner
 
             try {
                 $body = $this->social->linkMentions($body, $this->participants($batch, $parent));
+                $body = $this->inVoice($body, $personas[$index], $batch, $item);
 
                 $post = $this->replyCreator->create($discussion, $body, $author, $item->scheduled_at);
 
@@ -519,6 +530,26 @@ class BatchRunner
             ->reverse()
             ->values()
             ->all();
+    }
+
+    /**
+     * Applies the author's writing habits.
+     *
+     * Runs after mentions are linked, and VoiceQuirks masks mentions, code,
+     * links and quoted lines, so lowercasing or stripping accents can never
+     * break the formatter. Seeded per item, so a rerun reproduces the text.
+     *
+     * @param  array<string, mixed>  $persona
+     */
+    protected function inVoice(string $text, array $persona, Batch $batch, Item $item): string
+    {
+        $quirks = $persona['quirks'] ?? [];
+
+        if (! is_array($quirks) || $quirks === []) {
+            return $text;
+        }
+
+        return $this->voices->apply($text, $quirks, new Rng(($batch->seed ?: 1) + $item->id));
     }
 
     protected function authorOf(Item $item): ?User

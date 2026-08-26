@@ -27,7 +27,7 @@ final class AuthorPool
     private array $prefix = [];
 
     /**
-     * @param  array<int, array{joined_at: DateTimeImmutable}>  $users
+     * @param  array<int, array{joined_at: DateTimeImmutable, left_at?: DateTimeImmutable|null}>  $users
      * @param  array<int, float>  $activity
      */
     public function __construct(
@@ -79,31 +79,67 @@ final class AuthorPool
         $total = $this->prefix[$eligible - 1];
         $banned = array_flip($exclude);
 
-        for ($attempt = 0; $attempt < 8; $attempt++) {
+        // Rejection sampling rather than reweighting: activity varies with time
+        // (members leave, newcomers post more), which would break the static
+        // prefix sums that make a pick a binary search instead of a scan.
+        for ($attempt = 0; $attempt < 10; $attempt++) {
             $index = $this->order[$this->searchPrefix($rng->float() * $total, $eligible)];
 
-            if (! isset($banned[$index]) || $eligible === 1) {
+            if (isset($banned[$index]) && $eligible > 1) {
+                continue;
+            }
+
+            if ($this->hasNotLeft($index, $at)) {
                 return $index;
             }
         }
 
-        // Rare: the weighted pick keeps landing on an excluded member.
-        $others = [];
+        // Fall back to whoever is genuinely available, preferring members who
+        // are still around over ones who have left the forum.
+        $available = [];
+        $anyone = [];
 
         for ($position = 0; $position < $eligible; $position++) {
-            if (! isset($banned[$this->order[$position]])) {
-                $others[] = $this->order[$position];
+            $index = $this->order[$position];
+
+            if (isset($banned[$index])) {
+                continue;
+            }
+
+            $anyone[] = $index;
+
+            if ($this->hasNotLeft($index, $at)) {
+                $available[] = $index;
             }
         }
 
-        if ($others === []) {
+        $pool = $available !== [] ? $available : $anyone;
+
+        if ($pool === []) {
             // Everybody eligible is excluded; the ban is a preference, not a
             // reason to leave the reply unwritten.
             return $this->order[$rng->int(0, $eligible - 1)];
         }
 
-        return $others[$rng->int(0, count($others) - 1)];
+        return $pool[$rng->int(0, count($pool) - 1)];
     }
+
+    /** Members who left the forum do not post again. */
+    private function hasNotLeft(int $index, DateTimeImmutable $at): bool
+    {
+        $leftAt = $this->users[$index]['left_at'] ?? null;
+
+        return $leftAt === null || $leftAt >= $at;
+    }
+
+    /*
+     * Newcomers being noticeably more active than veterans was tried here and
+     * dropped: rejection sampling can only turn picks down, so boosting
+     * newcomers means rejecting veterans about half the time. That pushes a
+     * large share of picks into the uniform fallback below, losing the
+     * power-law weighting that makes a few members carry the forum - a real
+     * regression in exchange for a marginal gain.
+     */
 
     /** Number of members whose join date is at or before $timestamp. */
     private function eligibleCount(int $timestamp): int

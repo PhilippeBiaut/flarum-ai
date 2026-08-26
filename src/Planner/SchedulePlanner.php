@@ -37,6 +37,8 @@ class SchedulePlanner
             $activity[$index] = $rng->powerLaw(0.75);
         }
 
+        $result->users = $this->planDepartures($config, $result->users, $rng);
+
         $pool = new AuthorPool($result->users, $activity, $config->dateStart);
 
         $times = $this->planDiscussionTimes($config, $days, $dayWeights, $rng);
@@ -214,6 +216,39 @@ class SchedulePlanner
 
         foreach ($joinDates as $index => $joinedAt) {
             $users[$index] = ['joined_at' => $joinedAt];
+        }
+
+        return $users;
+    }
+
+    /**
+     * Some members stop coming.
+     *
+     * Without this everyone who ever joined is still posting on the last day of
+     * the period, which is the single least forum-like thing a member list can
+     * do. Lifespans follow a heavy tail: many people post for a fortnight and
+     * vanish, a few stay throughout.
+     *
+     * @param  array<int, array{joined_at: DateTimeImmutable}>  $users
+     * @return array<int, array{joined_at: DateTimeImmutable, left_at: DateTimeImmutable|null}>
+     */
+    protected function planDepartures(PlanConfig $config, array $users, Rng $rng): array
+    {
+        $share = min(0.9, max(0.0, (float) $config->generation('departed_share', 0.35)));
+        $periodDays = max(1, $config->days());
+
+        foreach ($users as $index => $user) {
+            if (! $rng->bool($share)) {
+                // Still around on the last day.
+                $users[$index]['left_at'] = null;
+                continue;
+            }
+
+            // Heavy tail: mostly short stays, occasionally a long one.
+            $lifespan = max(1, (int) round($periodDays * min(1.0, $rng->powerLaw(0.55) / 12)));
+            $leftAt = $user['joined_at']->modify('+'.$lifespan.' days');
+
+            $users[$index]['left_at'] = $leftAt > $config->dateEnd ? null : $leftAt;
         }
 
         return $users;

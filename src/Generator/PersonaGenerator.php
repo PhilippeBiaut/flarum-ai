@@ -4,6 +4,7 @@ namespace Pbiaut\AiSeeder\Generator;
 
 use Pbiaut\AiSeeder\OpenAI\Client;
 use Pbiaut\AiSeeder\OpenAI\OpenAiException;
+use Pbiaut\AiSeeder\Planner\Rng;
 
 /**
  * Generates member personas in bulk (one API call per batch of members),
@@ -26,11 +27,18 @@ class PersonaGenerator
      *
      * @throws OpenAiException
      */
-    public function generate(int $count, GenerationContext $context, array $existingUsernames = [], ?string $model = null): array
-    {
+    public function generate(
+        int $count,
+        GenerationContext $context,
+        array $existingUsernames = [],
+        ?string $model = null,
+        ?Rng $rng = null,
+    ): array {
         if ($count <= 0) {
             return [];
         }
+
+        $rng ??= new Rng(random_int(1, 2147483646));
 
         $system = $this->prompts->system(
             $context,
@@ -79,6 +87,9 @@ class PersonaGenerator
                 'bio' => $this->clean((string) ($member['bio'] ?? ''), 400),
                 'voice' => $this->clean((string) ($member['voice'] ?? ''), 300),
                 'interests' => $this->interests($member['interests'] ?? []),
+                // Drawn once, kept forever: a model cannot hold a mannerism
+                // across two hundred messages, PHP can.
+                'quirks' => VoiceQuirks::draw($rng),
             ];
 
             if (count($personas) >= $count) {
