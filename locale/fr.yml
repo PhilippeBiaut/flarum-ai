@@ -112,6 +112,11 @@ pbiaut-ai-seeder:
       revert_confirm: "Supprimer définitivement les {count} membres, discussions et messages créés par la génération n°{id} ?"
       failure_details: Détail des échecs
       waiting_for_worker: En file d'attente. Si rien ne se passe, aucun worker de file n'est lancé - voir le README de l'extension.
+      no_worker: Aucun worker de file sur ce forum : c'est cette page qui exécute la génération. Gardez l'onglet ouvert jusqu'à la fin ; vous pouvez le fermer et revenir, la génération reprend où elle s'est arrêtée.
+      driving: Exécution depuis cette page, tranche par tranche. Gardez l'onglet ouvert.
+      continue: Poursuivre la génération
+      stop_driving: Arrêter ici
+      log: "Journal ({count} lignes)"
 
     status:
       planned: Planifiée

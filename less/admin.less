@@ -263,3 +263,55 @@
     font-size: 12px;
   }
 }
+
+// Run log -------------------------------------------------------------------
+
+.AiSeederPage {
+  .AiSeeder-log {
+    margin: 12px 0;
+
+    > summary {
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--muted-color);
+    }
+  }
+
+  .AiSeeder-log-lines {
+    max-height: 260px;
+    overflow-y: auto;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--control-bg);
+    border-radius: var(--border-radius);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .AiSeeder-log-line {
+    display: flex;
+    gap: 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .AiSeeder-log-time {
+    flex: none;
+    color: var(--muted-color);
+    opacity: 0.7;
+  }
+
+  .AiSeeder-log-line--error .AiSeeder-log-message {
+    color: #d9534f;
+  }
+
+  .AiSeeder-log-line--warning .AiSeeder-log-message {
+    color: #e0a800;
+  }
+
+  .AiSeeder-tagPaths {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+}

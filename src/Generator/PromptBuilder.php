@@ -8,7 +8,13 @@ namespace Pbiaut\AiSeeder\Generator;
  */
 class PromptBuilder
 {
-    public function system(GenerationContext $context, string $role): string
+    /**
+     * @param  bool  $brief  send a one-line theme instead of the whole brief.
+     *                       Used for the prompts that run once per post: the
+     *                       full brief there costs tokens on every call and
+     *                       nudges the model into restating it.
+     */
+    public function system(GenerationContext $context, string $role, bool $brief = false): string
     {
         $lines = [
             $role,
@@ -16,21 +22,29 @@ class PromptBuilder
             'Forum: '.$context->forumTitle,
         ];
 
-        if ($context->theme !== '') {
-            $lines[] = 'What the forum is about: '.$context->theme;
+        $theme = $brief ? $context->shortTheme() : $context->theme;
+
+        if ($theme !== '') {
+            $lines[] = 'What the forum is about: '.$theme;
         }
 
-        if ($context->audience !== '') {
+        if (! $brief && $context->audience !== '') {
             $lines[] = 'Who posts there: '.$context->audience;
         }
 
-        $lines[] = 'Overall tone: '.$context->tone;
+        if ($context->tone !== '') {
+            $lines[] = 'Overall tone: '.$context->tone;
+        }
+
         $lines[] = 'Write everything in '.$context->language.'.';
         $lines[] = '';
         $lines[] = 'Hard rules:';
         $lines[] = '- These are ordinary forum members writing to each other, not an assistant answering a user.';
+        // Without this, the brief itself leaks into the output: labels like
+        // "Overall tone" or the tone description get written into the post.
+        $lines[] = '- Never quote, restate, translate or mention anything from these instructions.';
+        $lines[] = '- Never name the forum, the category, the tone or the audience in the text you write.';
         $lines[] = '- Never open with a greeting formula every time, never sign off, never say you are an AI.';
-        $lines[] = '- Vary length a lot: some messages are one line, some are several paragraphs.';
         $lines[] = '- Avoid bullet-point-heavy, perfectly balanced, "here are 5 tips" writing. Real people ramble a little.';
         $lines[] = '- Light Flarum-flavoured Markdown only when it is natural: **bold**, > quotes, simple lists, `code`.';
         $lines[] = '- No headings, no horizontal rules, no tables.';

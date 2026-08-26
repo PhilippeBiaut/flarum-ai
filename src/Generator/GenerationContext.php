@@ -31,6 +31,26 @@ final class GenerationContext
     }
 
     /**
+     * A one-line version of the theme.
+     *
+     * The full text is worth sending when choosing what threads to open, but
+     * repeating a long brief on every single post and reply wastes tokens and,
+     * worse, pushes the model towards restating it instead of writing.
+     */
+    public function shortTheme(int $max = 200): string
+    {
+        foreach (preg_split('/\r\n|\r|\n/', $this->theme) ?: [] as $line) {
+            $line = trim((string) $line);
+
+            if ($line !== '') {
+                return mb_strlen($line) > $max ? mb_substr($line, 0, $max).'...' : $line;
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * @param  array<string, mixed>  $config
      */
     private static function text(array $config, string $key, string $default): string

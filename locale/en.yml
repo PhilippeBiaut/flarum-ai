@@ -112,6 +112,11 @@ pbiaut-ai-seeder:
       revert_confirm: "Permanently delete the {count} members, discussions and posts created by run #{id}?"
       failure_details: Failure details
       waiting_for_worker: Queued. If nothing happens, no queue worker is running - see the extension README.
+      no_worker: No queue worker on this forum, so this page runs the generation itself. Keep the tab open until it finishes; you can close it and come back, the run resumes where it stopped.
+      driving: Running from this page, one slice at a time. Keep the tab open.
+      continue: Continue the run
+      stop_driving: Stop here
+      log: "Run log ({count} lines)"
 
     status:
       planned: Planned

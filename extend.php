@@ -24,6 +24,8 @@ return [
         ->get('/ai-seeder/batches', 'ai-seeder.batches.index', Api\Controller\ListBatchesController::class)
         ->post('/ai-seeder/batches', 'ai-seeder.batches.create', Api\Controller\CreateBatchController::class)
         ->get('/ai-seeder/batches/{id}', 'ai-seeder.batches.show', Api\Controller\ShowBatchController::class)
+        ->get('/ai-seeder/batches/{id}/logs', 'ai-seeder.batches.logs', Api\Controller\ShowLogsController::class)
+        ->post('/ai-seeder/batches/{id}/run', 'ai-seeder.batches.run', Api\Controller\RunSliceController::class)
         ->post('/ai-seeder/batches/{id}/state', 'ai-seeder.batches.state', Api\Controller\UpdateBatchStateController::class)
         ->delete('/ai-seeder/batches/{id}', 'ai-seeder.batches.delete', Api\Controller\RevertBatchController::class),
 

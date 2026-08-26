@@ -5,6 +5,7 @@ namespace Pbiaut\AiSeeder\Job;
 use Flarum\Queue\AbstractJob;
 use Illuminate\Contracts\Queue\Queue;
 use Pbiaut\AiSeeder\Model\Batch;
+use Pbiaut\AiSeeder\Service\QueueInspector;
 use Pbiaut\AiSeeder\Service\RevertRunner;
 
 /**
@@ -17,7 +18,7 @@ class RevertBatchJob extends AbstractJob
         parent::__construct();
     }
 
-    public function handle(RevertRunner $runner, Queue $queue): void
+    public function handle(RevertRunner $runner, Queue $queue, QueueInspector $queues): void
     {
         $batch = Batch::find($this->batchId);
 
@@ -25,7 +26,9 @@ class RevertBatchJob extends AbstractJob
             return;
         }
 
-        if ($runner->run($batch)) {
+        // Under the sync driver a re-queue runs inline, which would recurse
+        // until PHP times out; the admin screen drives the slices there.
+        if ($runner->run($batch) && ! $queues->isSync()) {
             $queue->push(new self($this->batchId));
         }
     }

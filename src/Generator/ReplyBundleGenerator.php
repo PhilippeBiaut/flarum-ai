@@ -4,14 +4,15 @@ namespace Pbiaut\AiSeeder\Generator;
 
 use Pbiaut\AiSeeder\OpenAI\Client;
 use Pbiaut\AiSeeder\OpenAI\OpenAiException;
+use Pbiaut\AiSeeder\Planner\ReplyLength;
 
 /**
  * Generates every reply of a thread in a single call.
  *
  * This is both the cheap option (one call instead of one per reply) and the
  * good one: the model sees the whole conversation it is writing, so people
- * actually answer each other, disagree, correct themselves and close the loop,
- * instead of producing N independent comments on the same opening post.
+ * actually answer each other, correct themselves and close the loop, instead of
+ * producing N independent comments on the same opening post.
  */
 class ReplyBundleGenerator
 {
@@ -27,7 +28,8 @@ class ReplyBundleGenerator
     /**
      * @param  array<string, mixed>  $opPersona
      * @param  array<int, array<string, mixed>>  $personas  one per reply, in order
-     * @param  array<int, array{author: string, content: string}>  $alreadyWritten  earlier replies of the same thread
+     * @param  array<int, int>  $lengths  target word count per reply, same order
+     * @param  array<int, array{author: string, content: string}>  $alreadyWritten
      * @return array<int, string>  one body per requested reply
      *
      * @throws OpenAiException
@@ -40,6 +42,7 @@ class ReplyBundleGenerator
         GenerationContext $context,
         array $alreadyWritten = [],
         ?string $model = null,
+        array $lengths = [],
     ): array {
         $count = count($personas);
 
@@ -49,14 +52,19 @@ class ReplyBundleGenerator
 
         $system = $this->prompts->system(
             $context,
-            'You write a whole forum thread: several members replying to each other over time.'
+            'You write the replies a forum thread actually gets: people who read the opening post and help.',
+            true
         );
 
         $participants = [];
 
         foreach (array_values($personas) as $index => $persona) {
-            $participants[] = 'Reply '.($index + 1).' is written by '.($persona['display_name'] ?? $persona['username'] ?? 'a member')
-                ."\n".$this->prompts->describePersona($persona, 'Member');
+            $words = $lengths[$index] ?? 90;
+
+            $participants[] = 'Reply '.($index + 1).' - by '
+                .($persona['display_name'] ?? $persona['username'] ?? 'a member')
+                .', length: '.ReplyLength::instruction((int) $words)."\n"
+                .$this->prompts->describePersona($persona, 'Member');
         }
 
         $transcript = [];
@@ -75,14 +83,24 @@ class ReplyBundleGenerator
             '"""',
             '',
             $transcript === [] ? null : "Replies already posted in this thread:\n\"\"\"\n".implode("\n\n", $transcript)."\n\"\"\"\n",
-            "Now write the next $count replies, in order, each by the member listed below:",
+            "Write the next $count replies, in order, one per member listed below.",
             '',
-            implode("\n\n", $participants),
+            // The point of a reply is to be useful. Everything else is texture.
+            'What a reply is for:',
+            '- Answer the actual question asked in the opening post. If it asks how to do something,',
+            '  say how. If it asks which to choose, choose one and say why. Be concrete and specific.',
+            '- Give real substance: the step, the setting, the number, the caveat, the thing that bit you.',
+            '- No filler. No "great question", no "hope this helps", no restating the problem back,',
+            '  no summarising what someone else just said before adding your own point.',
+            '- A reply that has nothing to add should be short, not padded to look substantial.',
             '',
-            'Make it a real conversation: they answer the opening post AND each other, quote each other occasionally',
-            'with "> ", partially disagree, ask a follow-up, report back later ("tried it, still not working"),',
-            'and at least one reply should be very short. Do not summarise, do not conclude politely.',
-            'Never mention dates or how much time has passed.',
+            'What keeps it a conversation rather than N separate answers:',
+            '- Later replies build on earlier ones: agree and add a detail, disagree and say why,',
+            '  quote a line with "> " when answering it directly.',
+            '- One or two replies can be a follow-up question or a report back ("tried it, still failing on X").',
+            '- Never mention dates, delays, or how much time has passed.',
+            '',
+            'Respect each reply\'s target length. Short means short: one or two sentences, no preamble.',
             '',
             'Answer as {"replies": [{"content": "..."}, ...]} with exactly '.$count.' entries, in order.',
         ]));

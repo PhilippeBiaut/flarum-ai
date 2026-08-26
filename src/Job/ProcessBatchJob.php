@@ -6,6 +6,7 @@ use Flarum\Queue\AbstractJob;
 use Illuminate\Contracts\Queue\Queue;
 use Pbiaut\AiSeeder\Model\Batch;
 use Pbiaut\AiSeeder\Service\BatchRunner;
+use Pbiaut\AiSeeder\Service\QueueInspector;
 use Pbiaut\AiSeeder\Service\TaggingRunner;
 
 /**
@@ -22,7 +23,7 @@ class ProcessBatchJob extends AbstractJob
         parent::__construct();
     }
 
-    public function handle(BatchRunner $generator, TaggingRunner $tagger, Queue $queue): void
+    public function handle(BatchRunner $generator, TaggingRunner $tagger, Queue $queue, QueueInspector $queues): void
     {
         $batch = Batch::find($this->batchId);
 
@@ -31,8 +32,12 @@ class ProcessBatchJob extends AbstractJob
         }
 
         $runner = $batch->isTagging() ? $tagger : $generator;
+        $more = $runner->run($batch);
 
-        if ($runner->run($batch)) {
+        // Under the sync driver `later()` runs the job inline, so re-queueing
+        // here would recurse until PHP's execution limit kills the request.
+        // There the admin screen asks for the next slice instead.
+        if ($more && ! $queues->isSync()) {
             // A small delay between slices keeps a rate-limited or failing run
             // from spinning through the queue as fast as the worker can go.
             $queue->later($runner->retryAfter, new self($this->batchId));

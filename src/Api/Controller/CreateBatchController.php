@@ -3,6 +3,7 @@
 namespace Pbiaut\AiSeeder\Api\Controller;
 
 use Pbiaut\AiSeeder\Api\BatchPresenter;
+use Pbiaut\AiSeeder\Service\QueueInspector;
 use Pbiaut\AiSeeder\Service\BatchService;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -11,6 +12,7 @@ class CreateBatchController extends AbstractSeederController
     public function __construct(
         protected BatchService $batches,
         protected BatchPresenter $presenter,
+        protected QueueInspector $queues,
     ) {
     }
 
@@ -18,6 +20,9 @@ class CreateBatchController extends AbstractSeederController
     {
         $batch = $this->batches->create($this->body($request));
 
-        return ['batch' => $this->presenter->present($batch, true)];
+        return [
+            'batch' => $this->presenter->present($batch, true),
+            'queue' => $this->queues->describe(),
+        ];
     }
 }

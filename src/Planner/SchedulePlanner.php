@@ -290,7 +290,14 @@ class SchedulePlanner
                 break;
             }
 
-            $replies[] = ['author' => $author, 'created_at' => $time];
+            $length = ReplyLength::draw($rng);
+
+            $replies[] = [
+                'author' => $author,
+                'created_at' => $time,
+                'words' => $length['words'],
+                'length' => $length['bucket'],
+            ];
             $previous = $author;
         }
 

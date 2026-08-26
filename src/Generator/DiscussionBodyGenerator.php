@@ -30,7 +30,8 @@ class DiscussionBodyGenerator
     ): string {
         $system = $this->prompts->system(
             $context,
-            'You write the opening post of a forum thread, staying strictly in the voice of the member described.'
+            'You write the opening post of a forum thread, staying strictly in the voice of the member described.',
+            true
         );
 
         $user = implode("\n", array_filter([
@@ -40,8 +41,13 @@ class DiscussionBodyGenerator
             $this->prompts->describePersona($persona),
             '',
             'Write the opening message of this thread.',
+            // The replies are generated against this post, so it has to give
+            // them something concrete to answer.
+            'Make it something other members can actually respond to: a specific question, a precise problem',
+            'with the details that matter (what was tried, what happened), a choice to arbitrate, or a result',
+            'worth reacting to. Vague musing gives the thread nothing to work with.',
             'It must read like this person, not like a well-structured article: they may give context, hesitate,',
-            'add a detail at the end, or ask something very specific.',
+            'or add a detail at the end.',
             'Anything between 2 and 12 sentences depending on how much this person usually writes.',
             'Do not repeat the title as a heading, do not sign the message.',
             '',

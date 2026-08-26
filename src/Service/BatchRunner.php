@@ -44,7 +44,20 @@ class BatchRunner
         protected ReplyCreator $replyCreator,
         protected CounterRefresher $counters,
         protected TagProvisioner $tags,
+        protected RunLogger $logs,
     ) {
+    }
+
+    /** Writes to the batch's run log and, when running from the CLI, to stdout. */
+    protected function emitter(Batch $batch, ?callable $log): callable
+    {
+        return function (string $message, string $level = RunLogger::INFO) use ($batch, $log): void {
+            $this->logs->write($batch->id, $message, $level);
+
+            if ($log !== null) {
+                $log($message);
+            }
+        };
     }
 
     /**
@@ -62,7 +75,7 @@ class BatchRunner
     {
         $this->retryAfter = 2;
 
-        $log ??= static fn (string $message) => null;
+        $log = $this->emitter($batch, $log);
 
         if (! $this->client->isConfigured()) {
             return $this->fail($batch, 'No OpenAI API key is configured for this extension.');
@@ -186,6 +199,7 @@ class BatchRunner
 
                 $batch->increment('users_created');
             } catch (Throwable $e) {
+                $this->logs->error($batch->id, 'Member failed: '.$e->getMessage());
                 $item->markFailed($e->getMessage());
             }
         }
@@ -303,6 +317,7 @@ class BatchRunner
             $batch->increment('discussions_created');
             $log('Opened discussion "'.$item->get('title').'".');
         } catch (Throwable $e) {
+            $this->logs->error($batch->id, 'Discussion failed: '.$e->getMessage());
             $item->markFailed($e->getMessage());
         }
 
@@ -358,10 +373,12 @@ class BatchRunner
 
         $personas = [];
         $authors = [];
+        $lengths = [];
 
         foreach ($items as $item) {
             $personas[] = $this->personaOf($item);
             $authors[] = $this->authorOf($item);
+            $lengths[] = (int) $item->get('words', 90);
         }
 
         try {
@@ -372,7 +389,8 @@ class BatchRunner
                 $personas,
                 $context,
                 $this->writtenReplies($batch, $parent),
-                $model
+                $model,
+                $lengths
             );
         } catch (OpenAiException $e) {
             $this->penalise($items, $e);
@@ -399,6 +417,7 @@ class BatchRunner
 
                 $batch->increment('replies_created');
             } catch (Throwable $e) {
+                $this->logs->error($batch->id, 'Reply failed: '.$e->getMessage());
                 $item->markFailed($e->getMessage());
             }
         }
@@ -547,6 +566,8 @@ class BatchRunner
 
     protected function fail(Batch $batch, string $message): bool
     {
+        $this->logs->error($batch->id, $message);
+
         $batch->status = Batch::STATUS_FAILED;
         $batch->error = mb_substr($message, 0, 2000);
         $batch->finished_at = Carbon::now();

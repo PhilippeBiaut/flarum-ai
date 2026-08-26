@@ -60,14 +60,32 @@ export default class BatchProgress extends Component<BatchProgressAttrs> {
           </Alert>
         ) : null}
 
-        {batch.status === 'queued' && !batch.started_at ? (
+        {state.queueDriver === 'sync' ? (
+          <Alert type="warning" dismissible={false}>
+            {state.driving
+              ? app.translator.trans('pbiaut-ai-seeder.admin.run.driving')
+              : app.translator.trans('pbiaut-ai-seeder.admin.run.no_worker')}
+          </Alert>
+        ) : batch.status === 'queued' && !batch.started_at ? (
           <Alert type="warning" dismissible={false}>
             {app.translator.trans('pbiaut-ai-seeder.admin.run.waiting_for_worker')}
           </Alert>
         ) : null}
 
         <div className="AiSeeder-actions">
-          {live ? (
+          {state.queueDriver === 'sync' && !state.driving && live ? (
+            <Button className="Button Button--primary" icon="fas fa-forward" onclick={() => state.drive()}>
+              {app.translator.trans('pbiaut-ai-seeder.admin.run.continue')}
+            </Button>
+          ) : null}
+
+          {state.driving ? (
+            <Button className="Button" icon="fas fa-hand-paper" onclick={() => state.stopDrive()}>
+              {app.translator.trans('pbiaut-ai-seeder.admin.run.stop_driving')}
+            </Button>
+          ) : null}
+
+          {live && state.queueDriver !== 'sync' ? (
             <Button className="Button" icon="fas fa-pause" onclick={() => state.setState(batch.id, 'pause')}>
               {app.translator.trans('pbiaut-ai-seeder.admin.run.pause')}
             </Button>
@@ -98,6 +116,8 @@ export default class BatchProgress extends Component<BatchProgressAttrs> {
           ) : null}
         </div>
 
+        {this.log(state)}
+
         {batch.recent_failures && batch.recent_failures.length ? (
           <details className="AiSeeder-failures">
             <summary>{app.translator.trans('pbiaut-ai-seeder.admin.run.failure_details')}</summary>
@@ -112,6 +132,44 @@ export default class BatchProgress extends Component<BatchProgressAttrs> {
         ) : null}
       </div>
     );
+  }
+
+  /**
+   * The run's own trace. Without it a failure inside a queue worker is a
+   * generic error in the browser and a trip to the server's log file.
+   */
+  log(state: SeederState) {
+    if (!state.logs.length) return null;
+
+    return (
+      <details className="AiSeeder-log" open={true}>
+        <summary>
+          {app.translator.trans('pbiaut-ai-seeder.admin.run.log', { count: state.logs.length })}
+        </summary>
+        <div
+          className="AiSeeder-log-lines"
+          oncreate={(vnode: Mithril.VnodeDOM) => this.scrollToEnd(vnode)}
+          onupdate={(vnode: Mithril.VnodeDOM) => this.scrollToEnd(vnode)}
+        >
+          {state.logs.map((line) => (
+            <div className={`AiSeeder-log-line AiSeeder-log-line--${line.level}`} key={line.id}>
+              <span className="AiSeeder-log-time">{line.created_at.substr(11, 8)}</span>
+              <span className="AiSeeder-log-message">{line.message}</span>
+            </div>
+          ))}
+        </div>
+      </details>
+    );
+  }
+
+  /** Keeps the newest line in view, unless the admin scrolled up to read. */
+  scrollToEnd(vnode: Mithril.VnodeDOM) {
+    const element = vnode.dom as HTMLElement;
+    const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+
+    if (distanceFromBottom < 120) {
+      element.scrollTop = element.scrollHeight;
+    }
   }
 
   confirmRevert(batch: Batch, state: SeederState) {

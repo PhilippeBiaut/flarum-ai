@@ -115,7 +115,18 @@ export default class SeederState {
   error: string | null = null;
   notice: string | null = null;
 
+  /** Run log lines for the active batch, newest last. */
+  logs: { id: number; level: string; message: string; created_at: string }[] = [];
+
+  /** 'worker' when a queue worker exists, 'sync' when this page must drive. */
+  queueDriver: string | null = null;
+
+  /** True while this page is pushing the run forward slice by slice. */
+  driving = false;
+
   private pollTimer: number | null = null;
+
+  private stopDriving = false;
 
   constructor() {
     this.form = this.defaults();
@@ -247,12 +258,13 @@ export default class SeederState {
     this.error = null;
 
     return app
-      .request<{ batch: Batch }>({ method: 'POST', url: this.url('/batches'), body: this.payload() })
-      .then(({ batch }) => {
-        this.active = batch;
+      .request<any>({ method: 'POST', url: this.url('/batches'), body: this.payload() })
+      .then((result: any) => {
+        this.active = result.batch;
+        this.queueDriver = result.queue?.driver ?? null;
         this.preview = null;
-        this.startPolling();
-        this.loadBatches();
+        this.logs = [];
+        this.afterStart();
       })
       .catch((e) => this.fail(e))
       .finally(() => {
@@ -301,12 +313,13 @@ export default class SeederState {
     this.error = null;
 
     return app
-      .request<{ batch: Batch }>({ method: 'POST', url: this.url('/batches'), body: this.retagPayload() })
-      .then(({ batch }) => {
-        this.active = batch;
+      .request<any>({ method: 'POST', url: this.url('/batches'), body: this.retagPayload() })
+      .then((result: any) => {
+        this.active = result.batch;
+        this.queueDriver = result.queue?.driver ?? null;
         this.retag.matched = null;
-        this.startPolling();
-        this.loadBatches();
+        this.logs = [];
+        this.afterStart();
       })
       .catch((e) => this.fail(e))
       .finally(() => {
@@ -336,11 +349,14 @@ export default class SeederState {
 
   show(id: number): Promise<void> {
     return app
-      .request<{ batch: Batch }>({ method: 'GET', url: this.url(`/batches/${id}`) })
-      .then(({ batch }) => {
-        this.active = batch;
+      .request<any>({ method: 'GET', url: this.url(`/batches/${id}`) })
+      .then((result: any) => {
+        this.active = result.batch;
+        this.queueDriver = result.queue?.driver ?? this.queueDriver;
+        this.logs = [];
+        this.loadLogs();
 
-        if (LIVE_STATUSES.includes(batch.status)) {
+        if (LIVE_STATUSES.includes(result.batch.status)) {
           this.startPolling();
         } else {
           this.stopPolling();
@@ -375,6 +391,81 @@ export default class SeederState {
       .catch((e) => this.fail(e));
   }
 
+  /**
+   * Fetches only the log lines this page has not shown yet.
+   */
+  loadLogs(): Promise<void> {
+    if (!this.active) return Promise.resolve();
+
+    const after = this.logs.length ? this.logs[this.logs.length - 1].id : 0;
+
+    return app
+      .request<any>({ method: 'GET', url: this.url(`/batches/${this.active.id}/logs`), params: { after } })
+      .then((result) => {
+        if (result.logs?.length) {
+          this.logs = this.logs.concat(result.logs).slice(-400);
+          m.redraw();
+        }
+      })
+      .catch(() => {
+        // The log is a convenience; never let it break the screen.
+      });
+  }
+
+  /**
+   * Pushes the run forward one slice per request.
+   *
+   * Needed when the forum has no queue worker: Flarum's `sync` driver runs
+   * queued jobs inline, so a job that re-queues itself recurses until PHP's
+   * time limit kills the request. Driving from here keeps every request short.
+   */
+  async drive(): Promise<void> {
+    if (this.driving || !this.active) return;
+
+    this.driving = true;
+    this.stopDriving = false;
+
+    try {
+      while (!this.stopDriving && this.active) {
+        const result = await app.request<any>({
+          method: 'POST',
+          url: this.url(`/batches/${this.active.id}/run`),
+        });
+
+        this.active = result.batch;
+        await this.loadLogs();
+        m.redraw();
+
+        if (!result.more || !LIVE_STATUSES.includes(result.batch.status)) break;
+      }
+    } catch (e: any) {
+      // Not fail(): that rethrows, which would leave an unhandled rejection
+      // escaping this loop.
+      this.error = e?.response?.errors?.[0]?.detail || e?.message || 'Unexpected error.';
+      this.loadLogs();
+    } finally {
+      this.driving = false;
+      this.loadBatches();
+      m.redraw();
+    }
+  }
+
+  stopDrive(): void {
+    this.stopDriving = true;
+  }
+
+  /** A worker picks the batch up on its own; without one, this page drives. */
+  afterStart(): void {
+    this.loadBatches();
+
+    if (this.queueDriver === 'sync') {
+      this.drive();
+    } else {
+      this.startPolling();
+      this.loadLogs();
+    }
+  }
+
   startPolling(): void {
     this.stopPolling();
 
@@ -385,6 +476,8 @@ export default class SeederState {
         .request<{ batch: Batch }>({ method: 'GET', url: this.url(`/batches/${this.active.id}`) })
         .then(({ batch }) => {
           this.active = batch;
+
+          this.loadLogs();
 
           if (!LIVE_STATUSES.includes(batch.status)) {
             this.stopPolling();

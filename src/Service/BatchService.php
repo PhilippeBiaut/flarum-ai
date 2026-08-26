@@ -29,6 +29,8 @@ class BatchService
         protected SeederSettings $settings,
         protected CostEstimator $estimator,
         protected Queue $queue,
+        protected QueueInspector $queues,
+        protected RunLogger $logs,
     ) {
     }
 
@@ -169,7 +171,7 @@ class BatchService
         });
 
         $this->settings->rememberConfig($preview['config']);
-        $this->queue->push(new ProcessBatchJob($batch->id));
+        $this->dispatch($batch);
 
         return $batch;
     }
@@ -202,9 +204,30 @@ class BatchService
         });
 
         $this->settings->rememberConfig($planConfig->toArray());
-        $this->queue->push(new ProcessBatchJob($batch->id));
+        $this->dispatch($batch);
 
         return $batch;
+    }
+
+    /**
+     * Queues the next slice - unless the forum runs the `sync` driver, where
+     * queueing means "run it right now, inside this request", and a job that
+     * re-queues itself would recurse until PHP times out. There the admin
+     * screen asks for one slice at a time instead.
+     */
+    protected function dispatch(Batch $batch): void
+    {
+        if ($this->queues->isSync()) {
+            $this->logs->write(
+                $batch->id,
+                'No queue worker on this forum (sync driver): the admin page will run this batch one slice at a time. Keep it open.',
+                RunLogger::WARNING
+            );
+
+            return;
+        }
+
+        $this->queue->push(new ProcessBatchJob($batch->id));
     }
 
     public function pause(Batch $batch): Batch
@@ -224,7 +247,7 @@ class BatchService
             $batch->error = null;
             $batch->save();
 
-            $this->queue->push(new ProcessBatchJob($batch->id));
+            $this->dispatch($batch);
         }
 
         return $batch;
@@ -255,7 +278,7 @@ class BatchService
         $batch->error = null;
         $batch->save();
 
-        $this->queue->push(new ProcessBatchJob($batch->id));
+        $this->dispatch($batch);
 
         return $batch;
     }
@@ -265,7 +288,9 @@ class BatchService
         $batch->status = Batch::STATUS_REVERTING;
         $batch->save();
 
-        $this->queue->push(new RevertBatchJob($batch->id));
+        if (! $this->queues->isSync()) {
+            $this->queue->push(new RevertBatchJob($batch->id));
+        }
 
         return $batch;
     }
@@ -322,6 +347,12 @@ class BatchService
                     'position' => $order,
                     'parent_item_id' => $discussionItems[$index] ?? null,
                     'author_item_id' => $userItems[$reply['author']] ?? null,
+                    // The target length is decided at planning time so it stays
+                    // reproducible for a given seed.
+                    'payload' => json_encode([
+                        'words' => $reply['words'],
+                        'length' => $reply['length'],
+                    ]),
                     'status' => Item::STATUS_PENDING,
                 ];
             }

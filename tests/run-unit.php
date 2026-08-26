@@ -32,6 +32,7 @@ use Pbiaut\AiSeeder\Planner\DayDistributor;
 use Pbiaut\AiSeeder\Planner\InvalidConfigException;
 use Pbiaut\AiSeeder\Planner\PlanConfig;
 use Pbiaut\AiSeeder\Planner\PlanResult;
+use Pbiaut\AiSeeder\Planner\ReplyLength;
 use Pbiaut\AiSeeder\Planner\Rng;
 use Pbiaut\AiSeeder\Planner\SchedulePlanner;
 
@@ -418,6 +419,61 @@ $t->test('fewer items than days still covers the whole period', function (Runner
 $t->test('impossible reply bounds raise a warning instead of silently lying', function (Runner $t): void {
     $plan = (new SchedulePlanner())->plan(config(['replies' => 5000, 'replies_max' => 3]));
     $t->ok($plan->warnings !== [], 'a warning is attached when the requested total cannot fit');
+});
+
+$t->test('every reply gets its own target length, mostly short', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config(['discussions' => 80, 'replies' => 900]));
+
+    $buckets = [];
+    $outOfRange = 0;
+    $missing = 0;
+
+    foreach ($plan->discussions as $discussion) {
+        foreach ($discussion['replies'] as $reply) {
+            if (! isset($reply['words'], $reply['length'])) {
+                $missing++;
+                continue;
+            }
+
+            $buckets[$reply['length']] = ($buckets[$reply['length']] ?? 0) + 1;
+
+            [$min, $max] = ReplyLength::BUCKETS[$reply['length']];
+
+            if ($reply['words'] < $min || $reply['words'] > $max) {
+                $outOfRange++;
+            }
+        }
+    }
+
+    $t->same(0, $missing, 'every reply carries a word target');
+    $t->same(0, $outOfRange, 'each target sits inside its own bucket');
+    $t->same(5, count($buckets), 'all five length buckets get used');
+
+    $short = ($buckets['very_short'] ?? 0) + ($buckets['short'] ?? 0);
+    $long = ($buckets['long'] ?? 0) + ($buckets['very_long'] ?? 0);
+
+    $t->ok($short > $long, 'short replies outnumber long ones, as on a real forum');
+});
+
+$t->test('reply lengths are reproducible and expressed as a range', function (Runner $t): void {
+    $a = ReplyLength::draw(new Rng(4242));
+    $b = ReplyLength::draw(new Rng(4242));
+
+    $t->ok($a === $b, 'the same seed draws the same length');
+
+    $t->ok(
+        str_contains(ReplyLength::instruction(100), '75') && str_contains(ReplyLength::instruction(100), '125'),
+        'a target of 100 becomes a 75-125 range'
+    );
+
+    // The range must bracket the target and never collapse to nothing.
+    foreach ([8, 20, 60, 160, 420] as $target) {
+        preg_match_all('/\d+/', ReplyLength::instruction($target), $numbers);
+        [$low, $high] = array_map('intval', $numbers[0]);
+
+        $t->ok($low >= 5, "target $target keeps a floor of at least 5 words (got $low)");
+        $t->ok($low <= $target && $target <= $high, "target $target sits inside its own range ($low-$high)");
+    }
 });
 
 $t->test('tag paths are parsed, deduplicated and capped at two levels', function (Runner $t): void {

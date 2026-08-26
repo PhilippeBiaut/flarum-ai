@@ -34,6 +34,7 @@ class TaggingRunner
         protected TagClassifier $classifier,
         protected TagProvisioner $tags,
         protected CounterRefresher $counters,
+        protected RunLogger $logs,
     ) {
     }
 
@@ -43,8 +44,15 @@ class TaggingRunner
      */
     public function run(Batch $batch, ?callable $log = null): bool
     {
-        $log ??= static fn (string $message) => null;
         $this->retryAfter = 2;
+
+        $log = function (string $message) use ($batch, $log): void {
+            $this->logs->write($batch->id, $message);
+
+            if ($log !== null) {
+                $log($message);
+            }
+        };
 
         if (! $this->client->isConfigured()) {
             return $this->fail($batch, 'No OpenAI API key is configured for this extension.');
@@ -193,6 +201,7 @@ class TaggingRunner
                 $batch->increment('discussions_created');
                 $tagged++;
             } catch (Throwable $e) {
+                $this->logs->error($batch->id, 'Tagging discussion #'.$discussionId.' failed: '.$e->getMessage());
                 $item->markFailed($e->getMessage());
             }
         }
@@ -309,6 +318,8 @@ class TaggingRunner
 
     protected function fail(Batch $batch, string $message): bool
     {
+        $this->logs->error($batch->id, $message);
+
         $batch->status = Batch::STATUS_FAILED;
         $batch->error = mb_substr($message, 0, 2000);
         $batch->finished_at = Carbon::now();
