@@ -133,15 +133,10 @@ class SocialSignals
                 $content
             ) ?? $content;
 
-            // "Name," or "Name :" at the start of a line - how people actually
-            // address each other. Only the first occurrence: repeating the
-            // mention in every paragraph reads as spam.
-            $content = preg_replace(
-                '/(^|\n)'.$quoted.'(\s*[,:])/u',
-                '$1'.str_replace('$', '\$', $mention).'$2',
-                $content,
-                1
-            ) ?? $content;
+            // A bare name at the start of a line is deliberately NOT promoted to
+            // a mention. Replies must open on the substance, and turning
+            // "Alice, tu as raison" into a mention only made that opening more
+            // prominent. Only an explicit "@name" becomes a real mention.
         }
 
         return $content;

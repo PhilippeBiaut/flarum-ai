@@ -73,6 +73,64 @@ class ReplyQuality
     }
 
     /**
+     * Removes a name used as a form of address at the very start of a reply.
+     *
+     * The prompt forbids it, but models fall back into "Alice, tu as raison"
+     * constantly - it is the most artificial habit they bring to a forum thread,
+     * and one leaked example is enough to spot generated content. This is the
+     * safety net; the prompt remains the first line of defence.
+     *
+     * Only the opening is touched: naming somebody mid-sentence is normal.
+     *
+     * @param  array<int, string>  $names  display names of the thread's members
+     */
+    public function stripLeadingAddress(string $reply, array $names): string
+    {
+        $reply = ltrim($reply);
+
+        // "@Alice, " or "@\"Alice Dupont\"#12 - " written as an opener.
+        $reply = preg_replace(
+            '/^@(?:"[^"]+"#\d+|[a-z0-9_-]+)\s*[,:;.!]*\s*[-–—]?\s*/iu',
+            '',
+            $reply,
+            1
+        ) ?? $reply;
+
+        foreach ($names as $name) {
+            $name = trim($name);
+
+            if (mb_strlen($name) < 3) {
+                continue;
+            }
+
+            // "Alice," / "Alice :" / "Alice - " at the very start. A separator
+            // is required: a reply that merely happens to begin with a word
+            // matching a handle ("Alice a raison mais...") is left alone.
+            $stripped = preg_replace(
+                '/^'.preg_quote($name, '/').'\s*(?:[,:;]\s*[-–—]?|[-–—])\s*/u',
+                '',
+                $reply,
+                1
+            );
+
+            if ($stripped !== null && $stripped !== $reply) {
+                $reply = $stripped;
+                break;
+            }
+        }
+
+        $reply = ltrim($reply);
+
+        // Removing "Alice, " from "Alice, tu as raison" leaves a lowercase
+        // opening; capitalise it back unless it starts with markup.
+        if ($reply !== '' && preg_match('/^[\p{Ll}]/u', $reply) === 1) {
+            $reply = mb_strtoupper(mb_substr($reply, 0, 1)).mb_substr($reply, 1);
+        }
+
+        return $reply;
+    }
+
+    /**
      * Word-level Jaccard similarity.
      *
      * Chosen over similar_text(), which is O(n^2) and would be run for every

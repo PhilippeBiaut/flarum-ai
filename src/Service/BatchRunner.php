@@ -52,6 +52,7 @@ class BatchRunner
         protected RunLogger $logs,
         protected SocialSignals $social,
         protected VoiceQuirks $voices,
+        protected ReplyQuality $quality,
     ) {
     }
 
@@ -513,6 +514,9 @@ class BatchRunner
             }
 
             try {
+                // Strip a leading form of address before mentions are linked,
+                // so "Alice," never survives as a mention either.
+                $body = $this->quality->stripLeadingAddress($body, $this->displayNames($personas, $parent));
                 $body = $this->social->linkMentions($body, $this->participants($batch, $parent));
                 $body = $this->inVoice($body, $personas[$index], $batch, $item);
 
@@ -654,6 +658,8 @@ class BatchRunner
             }
 
             try {
+                $body = $this->quality->stripLeadingAddress($body, $this->threadNames($discussion, $personas));
+
                 $post = $this->replyCreator->create($discussion, $body, $author, $item->scheduled_at);
 
                 $this->social->recordMentions($post->id, $body, $post->created_at);
@@ -758,6 +764,52 @@ class BatchRunner
         }
 
         return $this->voices->apply($text, $quirks, new Rng(($batch->seed ?: 1) + $item->id));
+    }
+
+    /**
+     * Display names present in a generated thread.
+     *
+     * @param  array<int, array<string, mixed>>  $personas
+     * @return array<int, string>
+     */
+    protected function displayNames(array $personas, Item $parent): array
+    {
+        $names = [];
+
+        foreach (array_merge($personas, [$this->personaOf($parent)]) as $persona) {
+            $name = $persona['display_name'] ?? $persona['username'] ?? null;
+
+            if (is_string($name) && $name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * Display names present in an existing thread, real members included.
+     *
+     * @param  array<int, array<string, mixed>>  $personas
+     * @return array<int, string>
+     */
+    protected function threadNames(Discussion $discussion, array $personas): array
+    {
+        $names = [];
+
+        foreach ($personas as $persona) {
+            $name = $persona['display_name'] ?? $persona['username'] ?? null;
+
+            if (is_string($name) && $name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        foreach ($this->recentPosts($discussion) as $message) {
+            $names[] = $message['author'];
+        }
+
+        return array_values(array_unique(array_filter($names)));
     }
 
     protected function authorOf(Item $item): ?User

@@ -702,6 +702,34 @@ $t->test('a thread that nobody answers is possible, and common', function (Runne
     $t->ok($forced->warnings !== [], 'and the contradiction is reported');
 });
 
+$t->test('a reply never opens on somebody name', function (Runner $t): void {
+    $quality = new Pbiaut\AiSeeder\Generator\ReplyQuality();
+    $names = ['Alice Dupont', 'linus_t', 'Éric'];
+
+    $cases = [
+        'Alice Dupont, tu as raison sur le cache.' => 'Tu as raison sur le cache.',
+        'Alice Dupont : essaie de vider /var/cache.' => 'Essaie de vider /var/cache.',
+        'linus_t - le souci vient des permissions.' => 'Le souci vient des permissions.',
+        'Éric, pareil chez moi.' => 'Pareil chez moi.',
+        '@linus_t merci, ça marche.' => 'Merci, ça marche.',
+        '@"Alice Dupont"#42 : vérifie les logs.' => 'Vérifie les logs.',
+    ];
+
+    foreach ($cases as $input => $expected) {
+        $t->same($expected, $quality->stripLeadingAddress($input, $names), 'stripped: '.$input);
+    }
+
+    // And what must survive untouched.
+    foreach ([
+        'Le cache disque, comme Alice Dupont le disait plus haut.',
+        '> vider le cache',
+        'Alice a raison mais il manque une étape.',
+        'Éric Satie composait autrement, rien à voir ici.',
+    ] as $untouched) {
+        $t->same($untouched, $quality->stripLeadingAddress($untouched, $names), 'left alone: '.$untouched);
+    }
+});
+
 $t->test('ReplyQuality catches duplicates and assistant tells', function (Runner $t): void {
     $quality = new Pbiaut\AiSeeder\Generator\ReplyQuality();
 
