@@ -1,0 +1,15 @@
+{
+  // Use Flarum's tsconfig as a starting point
+  "extends": "flarum-tsconfig",
+  // Matches everything under `src`, and pulls in core's global typings so the
+  // exposed `m`, `$` and `dayjs` globals are known. The vendor path only exists
+  // once `composer install` has run inside a real forum.
+  "include": ["src/**/*", "admin.ts", "../vendor/flarum/core/js/dist-typings/@types/**/*"],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "declarationDir": "./dist-typings",
+    "paths": {
+      "flarum/*": ["../vendor/flarum/core/js/dist-typings/*"]
+    }
+  }
+}

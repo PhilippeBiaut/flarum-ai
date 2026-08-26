@@ -1,0 +1,114 @@
+pbiaut-ai-seeder:
+  admin:
+    sections:
+      connection: OpenAI connection
+      connection_help: The key stays on the server and is never sent to the browser of anyone but an administrator.
+      context: What this forum is about
+      context_help: Everything here goes into the prompts. The more precise it is, the less generic the generated content feels.
+      volumes: Volumes and period
+      volumes_help: How much to create, over which period, and how the activity should be shaped.
+      preview: Day-by-day plan
+      preview_help: Computed locally. Nothing has been sent to OpenAI and nothing has been created yet.
+      run: Current run
+      run_help: Generation happens in the background, a few API calls at a time.
+      history: History
+      history_help: Every run can be reopened, and everything it created can be removed in one click.
+
+    settings:
+      api_key_label: OpenAI API key
+      api_key_help: Create one at platform.openai.com. Give it a low spending cap while you are testing.
+      base_url_label: API base URL
+      base_url_help: Leave empty for OpenAI. Point it elsewhere for Azure OpenAI, OpenRouter, LiteLLM or a local server.
+      calls_per_run: API calls per queue job
+      requests_per_minute: Max requests per minute (0 = no limit)
+      max_tokens: Max tokens per response
+      temperature: Temperature
+      email_domain: Email domain for generated members
+      timezone: Timezone used for the calendar
+      price_input: Price per 1M input tokens
+      price_output: Price per 1M output tokens
+      currency: Currency
+
+    connection:
+      test: Test the connection
+      ok: "Connected. {count} usable models found."
+
+    form:
+      model: Model
+      model_help: Fetched live from the endpoint above, so the list always matches what your key can actually use.
+      language: Language to write in
+      tone: Overall tone
+      theme: What members talk about
+      theme_help: For example "self-hosting, home servers and NAS, for hobbyists who like tinkering".
+      audience: Who the members are
+      tags: Tags to use
+      tags_help: The weight decides how often a tag is picked. Leave a tag unchecked to skip it entirely.
+      users: Members
+      discussions: Discussions
+      replies: Replies (total)
+      date_start: Period start
+      date_end: Period end
+      distribution: Distribution
+      distribution_organic: Organic (weekday rhythm and growth)
+      distribution_uniform: Uniform (same volume every day)
+      distribution_random: Random
+      hour_start: Earliest posting hour
+      hour_end: Latest posting hour
+      replies_min: Min replies per discussion
+      replies_max: Max replies per discussion
+      reply_window: Reply window (days)
+      seed: Seed (leave empty for a new one)
+      compute_plan: Compute the plan
+      compute_plan_help: Free and instant. No OpenAI call.
+      start: Generate
+      start_help: "Runs in the background, roughly {runs} queue job(s)."
+      start_confirm: "About to generate {count} posts with around {calls} OpenAI calls. This will be billed to your account. Continue?"
+
+    preview:
+      members: Members
+      discussions: Discussions
+      replies: Replies
+      days: Days
+      per_day: Discussions / replies per day
+      per_thread: Replies per discussion
+      api_calls: API calls
+      cost: Estimated cost
+      cost_unknown: set the prices
+      show_table: "Show the {count} active days"
+      date: Date
+      signups: Signups
+      no_prices: Fill in the token prices in the connection section to get a cost estimate.
+
+    run:
+      title: "Run #{id}"
+      members: "Members: {done} / {total}"
+      discussions: "Discussions: {done} / {total}"
+      replies: "Replies: {done} / {total}"
+      usage: "{calls} API calls, {tokens} tokens"
+      failed: "{count} item(s) failed"
+      pause: Pause
+      resume: Resume
+      cancel: Cancel
+      retry: Retry the failed items
+      revert: Delete everything this run created
+      revert_confirm: "Permanently delete the {count} members, discussions and posts created by run #{id}?"
+      failure_details: Failure details
+      waiting_for_worker: Queued. If nothing happens, no queue worker is running - see the extension README.
+
+    status:
+      planned: Planned
+      queued: Queued
+      running: Running
+      paused: Paused
+      completed: Completed
+      failed: Failed
+      cancelled: Cancelled
+      reverting: Reverting
+      reverted: Reverted
+
+    history:
+      status: Status
+      period: Period
+      created: Members / discussions / replies
+      tokens: Tokens
+      open: Open

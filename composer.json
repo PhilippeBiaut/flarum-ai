@@ -1,0 +1,49 @@
+{
+    "name": "pbiaut/flarum-ai-seeder",
+    "description": "Generate members, discussions and replies with OpenAI, spread day by day over a period you choose.",
+    "keywords": ["flarum", "seeder", "openai", "ai", "demo-content"],
+    "type": "flarum-extension",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "flarum/core": "^2.0.0-rc.1",
+        "guzzlehttp/guzzle": "^7.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "Pbiaut\\AiSeeder\\": "src/"
+        }
+    },
+    "require-dev": {
+        "flarum/testing": "^2.0"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Pbiaut\\AiSeeder\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "flarum-extension": {
+            "title": "AI Seeder",
+            "category": "feature",
+            "icon": {
+                "name": "fas fa-robot",
+                "backgroundColor": "#1d2a3a",
+                "color": "#fff"
+            },
+            "database-support": ["mysql", "pgsql", "sqlite"]
+        }
+    },
+    "scripts": {
+        "test:planner": "php tests/run-unit.php",
+        "test:unit": "phpunit -c tests/phpunit.unit.xml",
+        "test:integration": "phpunit -c tests/phpunit.integration.xml",
+        "test:setup": "@php tests/integration/setup.php"
+    },
+    "scripts-descriptions": {
+        "test:planner": "Runs the planner tests with nothing but a PHP binary (no forum, no network, no API key).",
+        "test:unit": "Runs the PHPUnit unit suite.",
+        "test:integration": "Runs the PHPUnit integration suite against a test forum.",
+        "test:setup": "Sets up the test forum used by the integration suite."
+    }
+}

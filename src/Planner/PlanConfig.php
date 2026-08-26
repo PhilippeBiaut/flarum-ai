@@ -1,0 +1,315 @@
+<?php
+
+namespace Pbiaut\AiSeeder\Planner;
+
+use DateTimeImmutable;
+use DateTimeZone;
+use Exception;
+
+/**
+ * Validated, normalised representation of the admin form.
+ *
+ * Deliberately free of any Flarum dependency, so the planner can be unit
+ * tested on its own without booting a forum.
+ */
+final class PlanConfig
+{
+    public const MAX_USERS = 5000;
+    public const MAX_DISCUSSIONS = 5000;
+    public const MAX_REPLIES = 100000;
+    public const MAX_DAYS = 1830; // ~5 years
+
+    public const DISTRIBUTIONS = ['organic', 'uniform', 'random'];
+
+    /** Default weekday weights, Monday (1) through Sunday (7). */
+    public const DEFAULT_WEEKDAY_WEIGHTS = [
+        1 => 1.0, 2 => 1.0, 3 => 1.0, 4 => 1.0, 5 => 0.95, 6 => 0.6, 7 => 0.5,
+    ];
+
+    /**
+     * @param  array<int, float>  $weekdayWeights  keyed 1 (Mon) .. 7 (Sun)
+     * @param  array<int, array{id: int, name: string, weight: float}>  $tags
+     * @param  array<string, mixed>  $raw
+     */
+    private function __construct(
+        public readonly int $users,
+        public readonly int $discussions,
+        public readonly int $replies,
+        public readonly DateTimeImmutable $dateStart,
+        public readonly DateTimeImmutable $dateEnd,
+        public readonly string $distribution,
+        public readonly int $hourStart,
+        public readonly int $hourEnd,
+        public readonly int $repliesMin,
+        public readonly int $repliesMax,
+        public readonly array $weekdayWeights,
+        public readonly float $growthStart,
+        public readonly float $growthEnd,
+        public readonly float $founderRatio,
+        public readonly int $replyWindowDays,
+        public readonly int $seed,
+        public readonly array $tags,
+        public readonly array $raw,
+    ) {
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     *
+     * @throws InvalidConfigException
+     */
+    public static function fromArray(array $data, string $timezone = 'UTC'): self
+    {
+        $errors = [];
+
+        $users = self::intOf($data, 'users', 0);
+        $discussions = self::intOf($data, 'discussions', 0);
+        $replies = self::intOf($data, 'replies', 0);
+
+        if ($users < 0 || $users > self::MAX_USERS) {
+            $errors['users'] = 'must be between 0 and '.self::MAX_USERS;
+        }
+
+        if ($discussions < 0 || $discussions > self::MAX_DISCUSSIONS) {
+            $errors['discussions'] = 'must be between 0 and '.self::MAX_DISCUSSIONS;
+        }
+
+        if ($replies < 0 || $replies > self::MAX_REPLIES) {
+            $errors['replies'] = 'must be between 0 and '.self::MAX_REPLIES;
+        }
+
+        if ($users === 0 && ($discussions > 0 || $replies > 0)) {
+            $errors['users'] = 'at least one member is required to author content';
+        }
+
+        if ($discussions === 0 && $replies > 0) {
+            $errors['discussions'] = 'replies require at least one discussion';
+        }
+
+        try {
+            $tz = new DateTimeZone($timezone);
+        } catch (Exception) {
+            $tz = new DateTimeZone('UTC');
+        }
+
+        $dateStart = self::dateOf($data, 'date_start', $tz, false);
+        $dateEnd = self::dateOf($data, 'date_end', $tz, true);
+
+        if ($dateStart === null) {
+            $errors['date_start'] = 'expected a YYYY-MM-DD date';
+        }
+
+        if ($dateEnd === null) {
+            $errors['date_end'] = 'expected a YYYY-MM-DD date';
+        }
+
+        if ($dateStart !== null && $dateEnd !== null) {
+            if ($dateEnd < $dateStart) {
+                $errors['date_end'] = 'must not be earlier than the start date';
+            } elseif (self::dayCount($dateStart, $dateEnd) > self::MAX_DAYS) {
+                $errors['date_end'] = 'the period must not exceed '.self::MAX_DAYS.' days';
+            }
+        }
+
+        $distribution = (string) ($data['distribution'] ?? 'organic');
+
+        if (! in_array($distribution, self::DISTRIBUTIONS, true)) {
+            $errors['distribution'] = 'must be one of '.implode(', ', self::DISTRIBUTIONS);
+        }
+
+        $hourStart = self::intOf($data, 'hour_start', 8);
+        $hourEnd = self::intOf($data, 'hour_end', 23);
+
+        if ($hourStart < 0 || $hourStart > 23) {
+            $errors['hour_start'] = 'must be between 0 and 23';
+        }
+
+        if ($hourEnd <= $hourStart || $hourEnd > 24) {
+            $errors['hour_end'] = 'must be greater than the start hour and at most 24';
+        }
+
+        $repliesMin = max(0, self::intOf($data, 'replies_min', 0));
+        $repliesMax = max($repliesMin, self::intOf($data, 'replies_max', 40));
+
+        $weekdayWeights = self::weekdayWeightsOf($data);
+        $growthStart = self::floatOf($data, 'growth_start', 0.4);
+        $growthEnd = self::floatOf($data, 'growth_end', 1.6);
+
+        if ($growthStart <= 0 || $growthEnd <= 0) {
+            $errors['growth_start'] = 'growth factors must be greater than 0';
+        }
+
+        $founderRatio = min(1.0, max(0.05, self::floatOf($data, 'founder_ratio', 0.25)));
+        $replyWindowDays = min(365, max(1, self::intOf($data, 'reply_window_days', 30)));
+
+        $seed = self::intOf($data, 'seed', 0);
+
+        if ($seed <= 0) {
+            $seed = random_int(1, 2147483646);
+        }
+
+        $tags = self::tagsOf($data);
+
+        if ($errors !== []) {
+            throw new InvalidConfigException($errors);
+        }
+
+        return new self(
+            users: $users,
+            discussions: $discussions,
+            replies: $replies,
+            dateStart: $dateStart,
+            dateEnd: $dateEnd,
+            distribution: $distribution,
+            hourStart: $hourStart,
+            hourEnd: $hourEnd,
+            repliesMin: $repliesMin,
+            repliesMax: $repliesMax,
+            weekdayWeights: $weekdayWeights,
+            growthStart: $growthStart,
+            growthEnd: $growthEnd,
+            founderRatio: $founderRatio,
+            replyWindowDays: $replyWindowDays,
+            seed: $seed,
+            tags: $tags,
+            raw: $data,
+        );
+    }
+
+    public static function dayCount(DateTimeImmutable $start, DateTimeImmutable $end): int
+    {
+        $a = $start->setTime(0, 0, 0);
+        $b = $end->setTime(0, 0, 0);
+
+        return (int) $a->diff($b)->days + 1;
+    }
+
+    public function days(): int
+    {
+        return self::dayCount($this->dateStart, $this->dateEnd);
+    }
+
+    /** Generation-side settings, untouched by the planner. */
+    public function generation(string $key, mixed $default = null): mixed
+    {
+        return $this->raw[$key] ?? $default;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return array_merge($this->raw, [
+            'users' => $this->users,
+            'discussions' => $this->discussions,
+            'replies' => $this->replies,
+            'date_start' => $this->dateStart->format('Y-m-d'),
+            'date_end' => $this->dateEnd->format('Y-m-d'),
+            'timezone' => $this->dateStart->getTimezone()->getName(),
+            'distribution' => $this->distribution,
+            'hour_start' => $this->hourStart,
+            'hour_end' => $this->hourEnd,
+            'replies_min' => $this->repliesMin,
+            'replies_max' => $this->repliesMax,
+            'weekday_weights' => $this->weekdayWeights,
+            'growth_start' => $this->growthStart,
+            'growth_end' => $this->growthEnd,
+            'founder_ratio' => $this->founderRatio,
+            'reply_window_days' => $this->replyWindowDays,
+            'seed' => $this->seed,
+            'tags' => $this->tags,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function intOf(array $data, string $key, int $default): int
+    {
+        $value = $data[$key] ?? null;
+
+        return is_numeric($value) ? (int) $value : $default;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function floatOf(array $data, string $key, float $default): float
+    {
+        $value = $data[$key] ?? null;
+
+        return is_numeric($value) ? (float) $value : $default;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function dateOf(array $data, string $key, DateTimeZone $tz, bool $endOfDay): ?DateTimeImmutable
+    {
+        $value = $data[$key] ?? null;
+
+        if (! is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
+            return null;
+        }
+
+        $date = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $value.' 00:00:00', $tz);
+
+        if ($date === false) {
+            return null;
+        }
+
+        return $endOfDay ? $date->setTime(23, 59, 59) : $date;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<int, float>
+     */
+    private static function weekdayWeightsOf(array $data): array
+    {
+        $given = $data['weekday_weights'] ?? null;
+
+        if (! is_array($given)) {
+            return self::DEFAULT_WEEKDAY_WEIGHTS;
+        }
+
+        $weights = [];
+
+        foreach (self::DEFAULT_WEEKDAY_WEIGHTS as $day => $default) {
+            $value = $given[$day] ?? $given[(string) $day] ?? $default;
+            $weights[$day] = is_numeric($value) ? max(0.0, (float) $value) : $default;
+        }
+
+        return array_sum($weights) > 0 ? $weights : self::DEFAULT_WEEKDAY_WEIGHTS;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<int, array{id: int, name: string, weight: float}>
+     */
+    private static function tagsOf(array $data): array
+    {
+        $given = $data['tags'] ?? [];
+
+        if (! is_array($given)) {
+            return [];
+        }
+
+        $tags = [];
+
+        foreach ($given as $tag) {
+            if (! is_array($tag) || ! isset($tag['id']) || ! is_numeric($tag['id'])) {
+                continue;
+            }
+
+            $tags[] = [
+                'id' => (int) $tag['id'],
+                'name' => (string) ($tag['name'] ?? ''),
+                'weight' => max(0.0, (float) ($tag['weight'] ?? 1.0)),
+            ];
+        }
+
+        return $tags;
+    }
+}

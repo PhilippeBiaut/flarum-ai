@@ -1,0 +1,447 @@
+<?php
+
+/**
+ * Standalone unit tests for the planner.
+ *
+ * The planner deliberately has no Flarum and no network dependency, so it can
+ * be verified with nothing but a PHP binary:
+ *
+ *     php tests/run-unit.php
+ *
+ * The Flarum-side integration tests (creators, rollback) live under
+ * tests/integration and need a real forum + flarum/testing.
+ */
+
+declare(strict_types=1);
+
+spl_autoload_register(function (string $class): void {
+    $prefix = 'Pbiaut\\AiSeeder\\';
+
+    if (! str_starts_with($class, $prefix)) {
+        return;
+    }
+
+    $path = __DIR__.'/../src/'.str_replace('\\', '/', substr($class, strlen($prefix))).'.php';
+
+    if (is_file($path)) {
+        require_once $path;
+    }
+});
+
+use Pbiaut\AiSeeder\Planner\DayDistributor;
+use Pbiaut\AiSeeder\Planner\InvalidConfigException;
+use Pbiaut\AiSeeder\Planner\PlanConfig;
+use Pbiaut\AiSeeder\Planner\PlanResult;
+use Pbiaut\AiSeeder\Planner\Rng;
+use Pbiaut\AiSeeder\Planner\SchedulePlanner;
+
+final class Runner
+{
+    private int $passed = 0;
+
+    /** @var array<int, string> */
+    private array $failures = [];
+
+    private string $current = '';
+
+    public function test(string $name, callable $body): void
+    {
+        $this->current = $name;
+
+        try {
+            $body($this);
+        } catch (Throwable $e) {
+            $this->failures[] = $name.' :: threw '.$e::class.' - '.$e->getMessage();
+        }
+    }
+
+    public function ok(bool $condition, string $message): void
+    {
+        if ($condition) {
+            $this->passed++;
+
+            return;
+        }
+
+        $this->failures[] = $this->current.' :: '.$message;
+    }
+
+    public function same(mixed $expected, mixed $actual, string $message): void
+    {
+        $this->ok(
+            $expected === $actual,
+            $message.' (expected '.var_export($expected, true).', got '.var_export($actual, true).')'
+        );
+    }
+
+    public function report(): int
+    {
+        echo PHP_EOL;
+
+        if ($this->failures === []) {
+            echo "\033[32mAll ".$this->passed." assertions passed.\033[0m".PHP_EOL;
+
+            return 0;
+        }
+
+        echo "\033[31m".count($this->failures).' failure(s), '.$this->passed.' passed:'."\033[0m".PHP_EOL;
+
+        foreach ($this->failures as $failure) {
+            echo '  - '.$failure.PHP_EOL;
+        }
+
+        return 1;
+    }
+}
+
+/**
+ * @param  array<string, mixed>  $overrides
+ */
+function config(array $overrides = []): PlanConfig
+{
+    return PlanConfig::fromArray(array_merge([
+        'users' => 20,
+        'discussions' => 50,
+        'replies' => 300,
+        'date_start' => '2026-01-01',
+        'date_end' => '2026-05-31',
+        'distribution' => 'organic',
+        'seed' => 424242,
+    ], $overrides), 'UTC');
+}
+
+function totalReplies(PlanResult $plan): int
+{
+    return $plan->replyCount();
+}
+
+$t = new Runner();
+
+// ---------------------------------------------------------------- distributor
+
+$t->test('DayDistributor hits the exact total', function (Runner $t): void {
+    foreach ([[0, 5], [1, 5], [7, 3], [50, 151], [1000, 7], [3, 100]] as [$total, $slots]) {
+        $weights = [];
+
+        for ($i = 0; $i < $slots; $i++) {
+            $weights[$i] = 1.0 + $i * 0.1;
+        }
+
+        $result = DayDistributor::distribute($total, $weights);
+        $t->same($total, array_sum($result), "distribute($total, $slots slots) sums to the total");
+        $t->same($slots, count($result), "distribute($total, $slots slots) keeps every slot");
+        $t->ok(min($result) >= 0, 'no negative counts');
+    }
+});
+
+$t->test('DayDistributor tolerates zero and empty weights', function (Runner $t): void {
+    $t->same([], DayDistributor::distribute(10, []), 'empty weights give an empty result');
+    $result = DayDistributor::distribute(10, [0.0, 0.0, 0.0]);
+    $t->same(10, array_sum($result), 'all-zero weights still distribute the total');
+});
+
+$t->test('distributeClamped respects min and max', function (Runner $t): void {
+    $weights = [];
+
+    for ($i = 0; $i < 40; $i++) {
+        $weights[$i] = (float) random_int(1, 100);
+    }
+
+    $result = DayDistributor::distributeClamped(300, $weights, 2, 20);
+    $t->same(300, array_sum($result), 'clamped distribution still sums to the total');
+    $t->ok(min($result) >= 2, 'minimum honoured');
+    $t->ok(max($result) <= 20, 'maximum honoured');
+
+    // Infeasible: more than capacity.
+    $saturated = DayDistributor::distributeClamped(10000, $weights, 0, 5);
+    $t->same(40 * 5, array_sum($saturated), 'over-capacity falls back to full saturation');
+
+    // Infeasible: below the floor.
+    $floored = DayDistributor::distributeClamped(0, $weights, 3, 10);
+    $t->same(40 * 3, array_sum($floored), 'under-floor falls back to the minimum');
+});
+
+// --------------------------------------------------------------------- config
+
+$t->test('PlanConfig rejects impossible input', function (Runner $t): void {
+    $cases = [
+        'end before start' => ['date_end' => '2025-12-01'],
+        'bad date' => ['date_start' => '01/01/2026'],
+        'unknown distribution' => ['distribution' => 'chaos'],
+        'no members but content' => ['users' => 0],
+        'hours inverted' => ['hour_start' => 20, 'hour_end' => 8],
+        'too many discussions' => ['discussions' => 999999],
+    ];
+
+    foreach ($cases as $label => $overrides) {
+        $threw = false;
+
+        try {
+            config($overrides);
+        } catch (InvalidConfigException) {
+            $threw = true;
+        }
+
+        $t->ok($threw, "rejects: $label");
+    }
+});
+
+$t->test('PlanConfig generates a seed when none is given', function (Runner $t): void {
+    $c = config(['seed' => 0]);
+    $t->ok($c->seed > 0, 'a random seed is assigned');
+    $t->same(151, $c->days(), 'January 1st to May 31st 2026 is 151 days');
+});
+
+// -------------------------------------------------------------------- planner
+
+$t->test('totals match exactly what was requested', function (Runner $t): void {
+    foreach (['organic', 'uniform', 'random'] as $strategy) {
+        $c = config(['distribution' => $strategy]);
+        $plan = (new SchedulePlanner())->plan($c);
+
+        $t->same(20, count($plan->users), "$strategy: member count");
+        $t->same(50, count($plan->discussions), "$strategy: discussion count");
+        $t->same(300, totalReplies($plan), "$strategy: reply count");
+    }
+});
+
+$t->test('every content timestamp stays inside the period', function (Runner $t): void {
+    $c = config(['discussions' => 120, 'replies' => 900]);
+    $plan = (new SchedulePlanner())->plan($c);
+
+    $outside = 0;
+
+    foreach ($plan->discussions as $discussion) {
+        if ($discussion['created_at'] < $c->dateStart || $discussion['created_at'] > $c->dateEnd) {
+            $outside++;
+        }
+
+        foreach ($discussion['replies'] as $reply) {
+            if ($reply['created_at'] < $c->dateStart || $reply['created_at'] > $c->dateEnd) {
+                $outside++;
+            }
+        }
+    }
+
+    $t->same(0, $outside, 'no discussion or reply falls outside [date_start, date_end]');
+
+    $signupsOutside = 0;
+
+    foreach ($plan->users as $user) {
+        if ($user['joined_at'] < $c->dateStart || $user['joined_at'] > $c->dateEnd) {
+            $signupsOutside++;
+        }
+    }
+
+    $t->same(0, $signupsOutside, 'no member joins outside the period either');
+});
+
+$t->test('nobody posts before joining', function (Runner $t): void {
+    $c = config(['users' => 8, 'discussions' => 90, 'replies' => 600]);
+    $plan = (new SchedulePlanner())->plan($c);
+
+    $violations = 0;
+
+    foreach ($plan->discussions as $discussion) {
+        if ($plan->users[$discussion['author']]['joined_at'] > $discussion['created_at']) {
+            $violations++;
+        }
+
+        foreach ($discussion['replies'] as $reply) {
+            if ($plan->users[$reply['author']]['joined_at'] > $reply['created_at']) {
+                $violations++;
+            }
+        }
+    }
+
+    $t->same(0, $violations, 'every author joined before writing');
+});
+
+$t->test('replies are ordered and never precede the opening post', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config(['discussions' => 60, 'replies' => 700]));
+
+    $ordering = 0;
+    $sameAuthorTwice = 0;
+
+    foreach ($plan->discussions as $discussion) {
+        $previousTime = $discussion['created_at'];
+        $previousAuthor = $discussion['author'];
+
+        foreach ($discussion['replies'] as $reply) {
+            if ($reply['created_at'] <= $previousTime) {
+                $ordering++;
+            }
+
+            if ($reply['author'] === $previousAuthor) {
+                $sameAuthorTwice++;
+            }
+
+            $previousTime = $reply['created_at'];
+            $previousAuthor = $reply['author'];
+        }
+    }
+
+    $t->same(0, $ordering, 'reply timestamps strictly increase after the opening post');
+    $t->same(0, $sameAuthorTwice, 'nobody replies to themselves back to back');
+});
+
+$t->test('the same seed reproduces the same plan', function (Runner $t): void {
+    $a = (new SchedulePlanner())->plan(config(['seed' => 777]))->toSummaryArray();
+    $b = (new SchedulePlanner())->plan(config(['seed' => 777]))->toSummaryArray();
+    $c = (new SchedulePlanner())->plan(config(['seed' => 778]))->toSummaryArray();
+
+    $t->ok($a === $b, 'identical seed gives an identical day-by-day plan');
+    $t->ok($a !== $c, 'a different seed gives a different plan');
+});
+
+$t->test('the day-by-day summary adds up', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config());
+    $summary = $plan->toSummaryArray();
+
+    $t->same(151, count($summary['days']), 'one row per day of the period');
+    $t->same(50, array_sum(array_column($summary['days'], 'discussions')), 'daily discussions add up to the total');
+    $t->same(300, array_sum(array_column($summary['days'], 'replies')), 'daily replies add up to the total');
+    $t->same(20, array_sum(array_column($summary['days'], 'signups')), 'daily signups add up to the total');
+    $t->same(50, $summary['totals']['discussions'], 'totals block agrees');
+});
+
+$t->test('organic mode is quieter at weekends and busier as the forum grows', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config(['discussions' => 1200, 'replies' => 0, 'users' => 40]));
+    $days = $plan->days();
+
+    $weekday = $weekend = 0;
+    $first = $last = 0;
+    $total = count($days);
+
+    foreach ($days as $index => $day) {
+        $isWeekend = in_array((int) (new DateTimeImmutable($day['date']))->format('N'), [6, 7], true);
+
+        if ($isWeekend) {
+            $weekend += $day['discussions'];
+        } else {
+            $weekday += $day['discussions'];
+        }
+
+        if ($index < $total / 4) {
+            $first += $day['discussions'];
+        } elseif ($index >= 3 * $total / 4) {
+            $last += $day['discussions'];
+        }
+    }
+
+    // Compare daily averages, not raw sums (there are more weekdays than weekend days).
+    $weekendDays = count(array_filter($days, fn ($d) => in_array((int) (new DateTimeImmutable($d['date']))->format('N'), [6, 7], true)));
+    $weekdayDays = $total - $weekendDays;
+
+    $t->ok(
+        ($weekend / max(1, $weekendDays)) < ($weekday / max(1, $weekdayDays)),
+        'weekend days are quieter on average'
+    );
+    $t->ok($last > $first, 'the last quarter of the period is busier than the first');
+});
+
+$t->test('uniform mode really is flat', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config([
+        'distribution' => 'uniform',
+        'discussions' => 302,
+        'replies' => 0,
+        'users' => 10,
+    ]));
+
+    $counts = array_column($plan->days(), 'discussions');
+    $t->ok(max($counts) - min($counts) <= 1, 'uniform spreads within one unit per day');
+});
+
+$t->test('edge cases do not blow up', function (Runner $t): void {
+    $cases = [
+        'single day' => ['date_start' => '2026-03-04', 'date_end' => '2026-03-04', 'discussions' => 12, 'replies' => 40],
+        'fewer discussions than days' => ['discussions' => 3, 'replies' => 5],
+        'no replies' => ['replies' => 0],
+        'no discussions' => ['discussions' => 0, 'replies' => 0],
+        'single member' => ['users' => 1, 'discussions' => 5, 'replies' => 10],
+        'capped replies' => ['replies' => 300, 'replies_max' => 4],
+        'forced minimum' => ['replies' => 10, 'replies_min' => 3],
+        'narrow hours' => ['hour_start' => 22, 'hour_end' => 23],
+        'short reply window' => ['reply_window_days' => 1],
+    ];
+
+    foreach ($cases as $label => $overrides) {
+        $c = config($overrides);
+        $plan = (new SchedulePlanner())->plan($c);
+
+        $t->same($c->discussions, count($plan->discussions), "$label: discussion total");
+
+        $expectedReplies = min(
+            max($c->replies, $c->discussions * $c->repliesMin),
+            $c->discussions * $c->repliesMax
+        );
+        $t->same($expectedReplies, totalReplies($plan), "$label: reply total (bounds applied)");
+
+        $late = 0;
+
+        foreach ($plan->discussions as $discussion) {
+            foreach ($discussion['replies'] as $reply) {
+                if ($reply['created_at'] > $c->dateEnd) {
+                    $late++;
+                }
+            }
+        }
+
+        $t->same(0, $late, "$label: no reply overflows the period");
+    }
+});
+
+$t->test('fewer items than days still covers the whole period', function (Runner $t): void {
+    // 60 discussions over 151 days: a largest-remainder split would hand every
+    // one of them to the 60 highest-weighted days and leave January empty.
+    foreach (['organic', 'random'] as $strategy) {
+        $plan = (new SchedulePlanner())->plan(config([
+            'distribution' => $strategy,
+            'users' => 25,
+            'discussions' => 60,
+            'replies' => 420,
+        ]));
+
+        $days = $plan->days();
+        $half = intdiv(count($days), 2);
+
+        $firstHalf = array_sum(array_column(array_slice($days, 0, $half), 'discussions'));
+        $firstMonth = array_sum(array_column(array_slice($days, 0, 31), 'discussions'));
+        $activeDays = count(array_filter($days, fn ($d) => $d['discussions'] > 0));
+
+        $t->ok($firstHalf >= 6, "$strategy: the first half of the period carries a real share (got $firstHalf/60)");
+        $t->ok($firstMonth >= 1, "$strategy: the first month is not empty (got $firstMonth)");
+        $t->ok($activeDays >= 30, "$strategy: activity is spread over many days (got $activeDays)");
+    }
+});
+
+$t->test('impossible reply bounds raise a warning instead of silently lying', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config(['replies' => 5000, 'replies_max' => 3]));
+    $t->ok($plan->warnings !== [], 'a warning is attached when the requested total cannot fit');
+});
+
+$t->test('Rng is reproducible and bounded', function (Runner $t): void {
+    $a = new Rng(99);
+    $b = new Rng(99);
+
+    $sameSequence = true;
+    $inRange = true;
+
+    for ($i = 0; $i < 500; $i++) {
+        $x = $a->float();
+
+        if ($x !== $b->float()) {
+            $sameSequence = false;
+        }
+
+        if ($x < 0.0 || $x >= 1.0) {
+            $inRange = false;
+        }
+    }
+
+    $t->ok($sameSequence, 'the same seed yields the same stream');
+    $t->ok($inRange, 'float() stays in [0, 1)');
+    $t->ok((new Rng(1))->int(5, 5) === 5, 'int() handles a collapsed range');
+});
+
+exit($t->report());

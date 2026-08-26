@@ -1,0 +1,9 @@
+/vendor
+/js/node_modules
+/js/dist-typings
+composer.lock
+package-lock.json
+.DS_Store
+
+# js/dist is committed on purpose: forums installed with Composer alone have no
+# Node toolchain, so the built admin bundle has to ship with the extension.
