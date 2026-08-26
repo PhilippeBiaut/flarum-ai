@@ -194,7 +194,7 @@ class BatchService
             $batch->seed = $planConfig->seed;
             $batch->users_planned = count($plan->users);
             $batch->discussions_planned = count($plan->discussions);
-            $batch->replies_planned = $plan->replyCount();
+            $batch->replies_planned = $plan->replyCount() + count($plan->revivals);
             $batch->created_at = Carbon::now();
             $batch->save();
 
@@ -370,6 +370,26 @@ class BatchService
         }
 
         $this->insertRows($replyRows);
+
+        $revivalRows = [];
+
+        foreach ($plan->revivals as $order => $revival) {
+            $revivalRows[] = [
+                'batch_id' => $batch->id,
+                'type' => Item::TYPE_REVIVAL,
+                'scheduled_at' => Dates::toUtc($revival['created_at'])->format('Y-m-d H:i:s'),
+                'position' => $order,
+                'author_item_id' => $userItems[$revival['author']] ?? null,
+                'payload' => json_encode([
+                    'discussion_id' => $revival['discussion_id'],
+                    'words' => $revival['words'],
+                    'type' => $revival['type'],
+                ]),
+                'status' => Item::STATUS_PENDING,
+            ];
+        }
+
+        $this->insertRows($revivalRows);
     }
 
     /**

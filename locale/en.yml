@@ -31,6 +31,8 @@ pbiaut-ai-seeder:
       daily_discussions: "New discussions per day (average)"
       daily_replies: "New replies per day (average)"
       daily_jitter: "Day-to-day variation (0 to 1)"
+      revive_share: "Share of daily replies into existing threads (0 to 1)"
+      revive_window_days: "How far back a thread may be revived (days)"
       requests_per_minute: "Max requests per minute (0 = no limit)"
       max_tokens: "Max tokens per response"
       temperature: "Temperature"

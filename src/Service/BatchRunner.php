@@ -159,6 +159,7 @@ class BatchRunner
             ?? $this->stepTitles($batch, $context, $model, $log)
             ?? $this->stepDiscussions($batch, $context, $model, $log)
             ?? $this->stepReplies($batch, $context, $model, $log)
+            ?? $this->stepRevivals($batch, $context, $model, $log)
             ?? 0;
     }
 
@@ -558,6 +559,144 @@ class BatchRunner
         $targets = Item::whereIn('id', $ids)->whereNotNull('target_id')->pluck('target_id');
 
         return User::whereIn('id', $targets)->get()->all();
+    }
+
+    /**
+     * One call writes the new replies for one thread that already existed.
+     *
+     * The model is shown the thread as it stands - title, opening post, the
+     * last few messages - and writes into it. Nothing about the thread is
+     * changed: only posts are appended.
+     */
+    protected function stepRevivals(Batch $batch, GenerationContext $context, string $model, callable $log): ?int
+    {
+        /** @var Item|null $first */
+        $first = $batch->items()
+            ->pending()
+            ->where('type', Item::TYPE_REVIVAL)
+            ->orderBy('scheduled_at')
+            ->first();
+
+        if ($first === null) {
+            return null;
+        }
+
+        $discussionId = (int) $first->get('discussion_id', 0);
+        $discussion = Discussion::with('firstPost')->find($discussionId);
+
+        if ($discussion === null || $discussion->firstPost === null) {
+            $batch->items()
+                ->pending()
+                ->where('type', Item::TYPE_REVIVAL)
+                ->get()
+                ->filter(fn (Item $item) => (int) $item->get('discussion_id', 0) === $discussionId)
+                ->each(function (Item $item): void {
+                    $item->status = Item::STATUS_SKIPPED;
+                    $item->error = 'The discussion no longer exists.';
+                    $item->save();
+                });
+
+            return 1;
+        }
+
+        // Everything this run still owes that thread, written in one call so the
+        // replies read as a conversation rather than as separate arrivals.
+        $items = $batch->items()
+            ->pending()
+            ->where('type', Item::TYPE_REVIVAL)
+            ->orderBy('scheduled_at')
+            ->get()
+            ->filter(fn (Item $item) => (int) $item->get('discussion_id', 0) === $discussionId)
+            ->take(ReplyBundleGenerator::MAX_PER_CALL)
+            ->values();
+
+        $personas = [];
+        $authors = [];
+        $lengths = [];
+        $types = [];
+
+        foreach ($items as $item) {
+            $personas[] = $this->personaOf($item);
+            $authors[] = $this->authorOf($item);
+            $lengths[] = (int) $item->get('words', 90);
+            $types[] = (string) $item->get('type', 'answer');
+        }
+
+        try {
+            $bodies = $this->replies->generate(
+                (string) $discussion->title,
+                (string) $discussion->firstPost->content,
+                ['display_name' => $discussion->firstPost->user->display_name ?? 'a member'],
+                $personas,
+                $context,
+                $this->recentPosts($discussion),
+                $model,
+                $lengths,
+                // Coming back to an old thread is answering the thread itself.
+                array_fill(0, count($personas), 0),
+                $types
+            );
+        } catch (OpenAiException $e) {
+            $this->penalise($items, $e);
+
+            return 1;
+        }
+
+        $written = 0;
+
+        foreach ($items as $index => $item) {
+            $author = $authors[$index];
+            $body = $bodies[$index] ?? null;
+
+            if ($author === null || $body === null || trim($body) === '') {
+                $item->markFailed('No usable reply for this revival; it will be regenerated.');
+                continue;
+            }
+
+            try {
+                $post = $this->replyCreator->create($discussion, $body, $author, $item->scheduled_at);
+
+                $this->social->recordMentions($post->id, $body, $post->created_at);
+
+                $item->target_id = $post->id;
+                $item->mergePayload(['content' => $body, 'author' => $author->username]);
+                $item->status = Item::STATUS_DONE;
+                $item->error = null;
+                $item->save();
+
+                $batch->increment('replies_created');
+                $written++;
+            } catch (Throwable $e) {
+                $this->logs->error($batch->id, 'Revival failed: '.$e->getMessage());
+                $item->markFailed($e->getMessage());
+            }
+        }
+
+        $log('Revived "'.$discussion->title.'" with '.$written.' new reply/replies.');
+
+        return 1;
+    }
+
+    /**
+     * The tail of an existing thread, as context for a new reply.
+     *
+     * @return array<int, array{author: string, content: string}>
+     */
+    protected function recentPosts(Discussion $discussion): array
+    {
+        return Post::where('discussion_id', $discussion->id)
+            ->where('type', 'comment')
+            ->orderByDesc('number')
+            ->limit(6)
+            ->with('user')
+            ->get()
+            ->reverse()
+            ->map(fn (Post $post) => [
+                'author' => (string) ($post->user->display_name ?? 'a member'),
+                'content' => (string) $post->content,
+            ])
+            ->values()
+            ->all();
     }
 
     /**

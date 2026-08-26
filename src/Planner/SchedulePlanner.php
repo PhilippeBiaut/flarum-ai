@@ -102,6 +102,8 @@ class SchedulePlanner
             ];
         }
 
+        $result->revivals = $this->planRevivals($config, $pool, $rng);
+
         // The pool may have pulled a few members back in time so that early
         // content had an eligible author; take the adjusted dates back.
         $result->users = $pool->users();
@@ -434,6 +436,86 @@ class SchedulePlanner
         }
 
         return $replies;
+    }
+
+    /**
+     * Replies into threads that already exist.
+     *
+     * A forum is not only fresh threads: somebody finds a three-week-old
+     * question and answers it. Without this every reply a recurring run writes
+     * would land in a thread opened the same morning.
+     *
+     * @return array<int, array{discussion_id: int, author: int, created_at: DateTimeImmutable, words: int, type: string}>
+     */
+    protected function planRevivals(PlanConfig $config, AuthorPool $pool, Rng $rng): array
+    {
+        if ($config->reviveReplies <= 0 || $config->existingDiscussions === []) {
+            return [];
+        }
+
+        // A few old threads get a couple of replies; most get none.
+        $weights = [];
+
+        foreach ($config->existingDiscussions as $index => $discussion) {
+            $weights[$index] = $rng->powerLaw(0.9);
+        }
+
+        $counts = DayDistributor::sample($config->reviveReplies, $weights, $rng);
+        $revivals = [];
+
+        foreach ($counts as $index => $count) {
+            if ($count === 0) {
+                continue;
+            }
+
+            $discussion = $config->existingDiscussions[$index];
+            $previous = $discussion['last_user_id'];
+
+            for ($i = 0; $i < $count; $i++) {
+                $at = $this->timeOnDay($config->dateStart, $config, $rng);
+
+                // Never before the thread's own last message, and never after
+                // the day being generated.
+                if ($at <= $discussion['last_posted_at']) {
+                    $at = $discussion['last_posted_at']->modify('+'.$rng->int(600, 43200).' seconds');
+                }
+
+                if ($at > $config->dateEnd) {
+                    $at = $config->dateEnd;
+                }
+
+                $author = $pool->pick($at, array_values(array_filter([$previous])), $rng);
+
+                if ($author === null) {
+                    break;
+                }
+
+                $revivals[] = [
+                    'discussion_id' => $discussion['id'],
+                    'author' => $author,
+                    'created_at' => $at,
+                    'words' => ReplyLength::draw($rng)['words'],
+                    // Coming back to an older thread is nearly always about
+                    // adding something, not bickering.
+                    'type' => $rng->weightedKey([
+                        ReplyType::ANSWER => 26.0,
+                        ReplyType::EXPERIENCE => 24.0,
+                        ReplyType::FOLLOWUP => 14.0,
+                        ReplyType::EXPERT => 12.0,
+                        ReplyType::RESOURCE => 10.0,
+                        ReplyType::ALTERNATIVE => 8.0,
+                        ReplyType::CLARIFY => 6.0,
+                    ]) ?: ReplyType::ANSWER,
+                ];
+
+                // The pool excludes the previous poster; from here that is us.
+                $previous = null;
+            }
+        }
+
+        usort($revivals, fn (array $a, array $b) => $a['created_at'] <=> $b['created_at']);
+
+        return $revivals;
     }
 
     /**

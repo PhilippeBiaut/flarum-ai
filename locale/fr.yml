@@ -31,6 +31,8 @@ pbiaut-ai-seeder:
       daily_discussions: "Nouvelles discussions par jour (moyenne)"
       daily_replies: "Nouvelles réponses par jour (moyenne)"
       daily_jitter: "Variation d'un jour à l'autre (0 à 1)"
+      revive_share: "Part des réponses du jour dans des fils existants (0 à 1)"
+      revive_window_days: "Ancienneté maximale d'un fil relancé (jours)"
       requests_per_minute: "Requêtes par minute max (0 = illimité)"
       max_tokens: "Tokens max par réponse"
       temperature: "Température"

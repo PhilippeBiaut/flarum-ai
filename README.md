@@ -134,6 +134,13 @@ so the same people keep posting instead of a new isolated crowd appearing every
 morning. Volumes vary day to day, and a day already generated is never repeated -
 running the command twice creates nothing the second time.
 
+Part of each day's replies go into threads that already exist rather than into
+ones opened the same morning: somebody finds a three-week-old question and
+answers it, which is what a forum actually looks like. How large that share is,
+and how far back a thread may be revived, are both settings. Those replies are
+appended to the thread and nothing else about it is touched - a rollback removes
+the posts and leaves the discussion alone.
+
 It needs Flarum's scheduler, which is a single cron:
 
 ```bash

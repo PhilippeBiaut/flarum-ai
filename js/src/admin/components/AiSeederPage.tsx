@@ -421,6 +421,11 @@ export default class AiSeederPage extends ExtensionPage<ExtensionPageAttrs> {
           {this.settingField('pbiaut-ai-seeder.daily_jitter', 'daily_jitter', '0.4', 'number')}
         </div>
 
+        <div className="AiSeeder-row">
+          {this.settingField('pbiaut-ai-seeder.revive_share', 'revive_share', '0.4', 'number')}
+          {this.numberField('pbiaut-ai-seeder.revive_window_days', 'revive_window_days', 30)}
+        </div>
+
         <div className="AiSeeder-actions">{this.submitButton()}</div>
 
         <Alert type="warning" dismissible={false}>

@@ -820,6 +820,73 @@ $t->test('some members stop coming, and never post afterwards', function (Runner
     );
 });
 
+$t->test('replies can be planned into threads that already exist', function (Runner $t): void {
+    $existing = [];
+
+    // Ten threads whose last message is between one and thirty days old.
+    for ($i = 1; $i <= 10; $i++) {
+        $existing[] = [
+            'id' => 1000 + $i,
+            'last_posted_at' => (new DateTimeImmutable('2026-03-15 12:00:00'))
+                ->modify('-'.($i * 3).' days')
+                ->format('Y-m-d H:i:s'),
+            'last_user_id' => null,
+        ];
+    }
+
+    $plan = (new SchedulePlanner())->plan(config([
+        'users' => 12,
+        'discussions' => 2,
+        'replies' => 4,
+        'date_start' => '2026-03-16',
+        'date_end' => '2026-03-16',
+        'revive_replies' => 9,
+        'existing_discussions' => $existing,
+    ]));
+
+    $t->same(9, count($plan->revivals), 'every requested revival is planned');
+
+    $ids = array_column($existing, 'id');
+    $lastPosted = array_combine($ids, array_map(
+        fn (array $d) => new DateTimeImmutable($d['last_posted_at'], new DateTimeZone('UTC')),
+        $existing
+    ));
+
+    $unknown = 0;
+    $tooEarly = 0;
+    $outsideDay = 0;
+    $touched = [];
+
+    foreach ($plan->revivals as $revival) {
+        $id = $revival['discussion_id'];
+        $touched[$id] = true;
+
+        if (! in_array($id, $ids, true)) {
+            $unknown++;
+            continue;
+        }
+
+        // A new reply cannot land before the thread's own last message...
+        if ($revival['created_at'] <= $lastPosted[$id]) {
+            $tooEarly++;
+        }
+
+        // ...nor outside the day being generated.
+        if ($revival['created_at']->format('Y-m-d') !== '2026-03-16') {
+            $outsideDay++;
+        }
+    }
+
+    $t->same(0, $unknown, 'revivals only target threads that were offered');
+    $t->same(0, $tooEarly, 'no revival predates the thread it answers');
+    $t->same(0, $outsideDay, 'every revival lands on the day being generated');
+    $t->ok(count($touched) < 10, 'they concentrate on a few threads rather than one each');
+
+    // And a run with nothing to revive simply plans none.
+    $none = (new SchedulePlanner())->plan(config(['revive_replies' => 5]));
+    $t->same([], $none->revivals, 'no candidates means no revivals');
+});
+
 // --------------------------------------------------------------------- models
 
 $t->test('every defaulted column has a matching model default', function (Runner $t): void {

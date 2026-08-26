@@ -38,6 +38,13 @@ class Item extends AbstractModel
      */
     public const TYPE_TAGGING = 'tagging';
 
+    /**
+     * A reply into a thread that already existed before this run. Like tagging,
+     * its target is somebody else's discussion; unlike tagging, it does create
+     * a post, and a rollback deletes that post but never the thread.
+     */
+    public const TYPE_REVIVAL = 'revival';
+
     public const STATUS_PENDING = 'pending';
     public const STATUS_DONE = 'done';
     public const STATUS_FAILED = 'failed';

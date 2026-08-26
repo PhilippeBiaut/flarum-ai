@@ -29,6 +29,13 @@ final class PlanResult
      */
     public array $discussions = [];
 
+    /**
+     * Replies planned into threads that already exist.
+     *
+     * @var array<int, array{discussion_id: int, author: int, created_at: DateTimeImmutable, words: int, type: string}>
+     */
+    public array $revivals = [];
+
     /** @var array<int, string> */
     public array $warnings = [];
 

@@ -174,6 +174,18 @@ class SeederSettings
         return min(0.9, max(0.0, (float) $this->get('daily_jitter', 0.4)));
     }
 
+    /** Share of a day's replies that go into threads that already exist. */
+    public function reviveShare(): float
+    {
+        return min(0.9, max(0.0, (float) $this->get('revive_share', 0.4)));
+    }
+
+    /** How far back a thread may be and still get a new reply. */
+    public function reviveWindowDays(): int
+    {
+        return min(365, max(1, (int) $this->get('revive_window_days', 30)));
+    }
+
     /** How many past members a recurring run may draw authors from. */
     public function dailyAuthorPool(): int
     {

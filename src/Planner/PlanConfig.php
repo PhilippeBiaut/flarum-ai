@@ -50,6 +50,8 @@ final class PlanConfig
         public int $seed,
         public array $tags,
         public array $existingUsers,
+        public int $reviveReplies,
+        public array $existingDiscussions,
         public array $raw,
     ) {
     }
@@ -151,6 +153,8 @@ final class PlanConfig
 
         $tags = self::tagsOf($data);
         $existingUsers = self::existingUsersOf($data, $tz);
+        $reviveReplies = max(0, self::intOf($data, 'revive_replies', 0));
+        $existingDiscussions = self::existingDiscussionsOf($data, $tz);
 
         if ($errors !== []) {
             throw new InvalidConfigException($errors);
@@ -175,6 +179,8 @@ final class PlanConfig
             seed: $seed,
             tags: $tags,
             existingUsers: $existingUsers,
+            reviveReplies: $reviveReplies,
+            existingDiscussions: $existingDiscussions,
             raw: $data,
         );
     }
@@ -223,6 +229,8 @@ final class PlanConfig
             'seed' => $this->seed,
             'tags' => $this->tags,
             'existing_users' => [],
+            'existing_discussions' => [],
+            'revive_replies' => $this->reviveReplies,
         ]);
     }
 
@@ -399,6 +407,53 @@ final class PlanConfig
         }
 
         return $users;
+    }
+
+    /**
+     * Threads that already exist and could plausibly get a new reply today.
+     *
+     * A forum does not only produce fresh threads: somebody stumbles on a
+     * three-week-old question and answers it. Without this, every reply a
+     * recurring run writes lands in a thread opened the same morning, which is
+     * not how anybody uses a forum.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<int, array{id: int, last_posted_at: DateTimeImmutable, last_user_id: int|null}>
+     */
+    private static function existingDiscussionsOf(array $data, DateTimeZone $tz): array
+    {
+        $given = $data['existing_discussions'] ?? [];
+
+        if (! is_array($given)) {
+            return [];
+        }
+
+        $discussions = [];
+
+        foreach ($given as $discussion) {
+            if (! is_array($discussion) || ! isset($discussion['id'], $discussion['last_posted_at'])) {
+                continue;
+            }
+
+            $last = DateTimeImmutable::createFromFormat(
+                'Y-m-d H:i:s',
+                (string) $discussion['last_posted_at'],
+                new DateTimeZone('UTC')
+            );
+
+            if ($last === false) {
+                continue;
+            }
+
+            $discussions[] = [
+                'id' => (int) $discussion['id'],
+                'last_posted_at' => $last->setTimezone($tz),
+                // Nobody replies to themselves twice in a row.
+                'last_user_id' => isset($discussion['last_user_id']) ? (int) $discussion['last_user_id'] : null,
+            ];
+        }
+
+        return $discussions;
     }
 
     /**

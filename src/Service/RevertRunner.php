@@ -43,7 +43,7 @@ class RevertRunner
 
         $tagIds = $this->plannedTagIds($batch);
 
-        foreach ([Item::TYPE_TAGGING, Item::TYPE_REPLY, Item::TYPE_DISCUSSION, Item::TYPE_USER] as $type) {
+        foreach ([Item::TYPE_TAGGING, Item::TYPE_REVIVAL, Item::TYPE_REPLY, Item::TYPE_DISCUSSION, Item::TYPE_USER] as $type) {
             $items = $batch->items()
                 ->where('type', $type)
                 ->orderByDesc('id')
@@ -102,7 +102,9 @@ class RevertRunner
         }
 
         $model = match ($item->type) {
-            Item::TYPE_REPLY => Post::find($item->target_id),
+            // A revival added a post to somebody else's thread: the post goes,
+            // the thread stays.
+            Item::TYPE_REVIVAL, Item::TYPE_REPLY => Post::find($item->target_id),
             Item::TYPE_DISCUSSION => Discussion::find($item->target_id),
             Item::TYPE_USER => User::find($item->target_id),
             default => null,
