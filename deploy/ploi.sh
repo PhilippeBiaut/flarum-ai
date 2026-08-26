@@ -25,6 +25,13 @@ echo "🚀 Deploying..."
 
 composer config repositories.flarum-ai git https://github.com/PhilippeBiaut/flarum-ai.git
 
+# For github.com URLs Composer tries a list of protocols in turn and only ever
+# reports the last failure - which is why a broken HTTPS clone surfaces as
+# "git@github.com: Permission denied (publickey)" on a server with no deploy
+# key. Pinning the protocol keeps it on HTTPS and makes real errors visible.
+
+composer config --global github-protocol https
+
 # --- Install or update -------------------------------------------------------
 #
 # The extension requires flarum/core ^1.8, so nothing needs to be relaxed:
