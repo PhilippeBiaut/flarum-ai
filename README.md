@@ -74,19 +74,33 @@ ready to paste into the site's *Deploy script* field.
 
 ## The queue (read this one)
 
-Generation runs as background jobs. Flarum's default queue driver is `sync`, which
-executes jobs inside the HTTP request — a long run would simply time out.
+Generation runs as background jobs. Flarum's default driver is `sync`, which does
+not queue anything: it runs the job inside the HTTP request.
 
-Install a real queue driver (for example `flarum/redis`, or any queue extension),
-then keep a worker running:
+**This is handled, not merely warned about.** Under `sync` the extension queues
+nothing and the admin page drives the run itself, a few API calls per request.
+It works, it resumes where it stopped, but the tab has to stay open.
+
+A real queue is better. On Flarum 1.x:
 
 ```bash
-php flarum queue:work
+composer require blomstra/database-queue
 ```
 
-No `--queue` flag is needed: the jobs stay on the default queue on purpose.
+That one needs no extra service — it uses the database you already have. Enable
+it in the admin panel, then keep a worker running:
 
-**No worker possible?** Use the command line instead — same code, no queue:
+```bash
+php flarum queue:work --sleep=3 --tries=3 --timeout=600
+```
+
+`fof/redis` works too if you already run Redis. No `--queue` flag is needed
+either way: the jobs stay on the default queue on purpose.
+
+The extension detects which driver is active and adapts: with a worker it uses
+larger slices (twelve API calls) and stops driving from the browser.
+
+**Neither possible?** The command line runs the same code with no queue at all:
 
 ```bash
 php flarum ai-seeder:run --users=20 --discussions=50 --replies=300 --from=2026-01-01 --to=2026-05-31
