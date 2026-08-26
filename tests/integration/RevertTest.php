@@ -8,7 +8,6 @@ use Flarum\Discussion\Discussion;
 use Flarum\Post\Post;
 use Flarum\Testing\integration\TestCase;
 use Flarum\User\User;
-use PHPUnit\Framework\Attributes\Test;
 use Pbiaut\AiSeeder\Creator\DiscussionCreator;
 use Pbiaut\AiSeeder\Creator\ReplyCreator;
 use Pbiaut\AiSeeder\Creator\UserCreator;
@@ -98,7 +97,7 @@ class RevertTest extends TestCase
         $item->save();
     }
 
-    #[Test]
+    /** @test */
     public function reverting_removes_everything_the_batch_created(): void
     {
         $batch = $this->seedBatch();
@@ -125,7 +124,7 @@ class RevertTest extends TestCase
         $this->assertSame(0, $batch->users_created + $batch->discussions_created + $batch->replies_created);
     }
 
-    #[Test]
+    /** @test */
     public function pre_existing_content_is_left_alone(): void
     {
         $batch = $this->seedBatch();

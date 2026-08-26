@@ -16,7 +16,7 @@ use Pbiaut\AiSeeder\Service\BatchRunner;
  */
 class ProcessBatchJob extends AbstractJob
 {
-    public function __construct(public readonly int $batchId)
+    public function __construct(public int $batchId)
     {
         parent::__construct();
     }

@@ -5,9 +5,9 @@
     "type": "flarum-extension",
     "license": "MIT",
     "require": {
-        "php": "^8.3",
-        "flarum/core": "^2.0.0-rc.1",
-        "guzzlehttp/guzzle": "^7.8"
+        "php": "^8.0",
+        "flarum/core": "^1.8",
+        "guzzlehttp/guzzle": "^7.4"
     },
     "autoload": {
         "psr-4": {
@@ -15,7 +15,7 @@
         }
     },
     "require-dev": {
-        "flarum/testing": "^2.0"
+        "flarum/testing": "^1.0"
     },
     "autoload-dev": {
         "psr-4": {
@@ -30,8 +30,7 @@
                 "name": "fas fa-robot",
                 "backgroundColor": "#1d2a3a",
                 "color": "#fff"
-            },
-            "database-support": ["mysql", "pgsql", "sqlite"]
+            }
         }
     },
     "scripts": {

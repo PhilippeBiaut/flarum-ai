@@ -33,7 +33,7 @@ final class AuthorPool
     public function __construct(
         private array $users,
         array $activity,
-        private readonly DateTimeImmutable $floor,
+        private DateTimeImmutable $floor,
     ) {
         $order = array_keys($this->users);
 

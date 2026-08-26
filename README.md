@@ -7,7 +7,7 @@ You give it volumes (X members, X discussions, X replies), a period and a model.
 It works out how many publications and replies land on each day, shows you that
 calendar for free, and only then starts spending.
 
-Built for Flarum **2.0**.
+Built for Flarum **1.8**.
 
 ---
 
@@ -38,18 +38,33 @@ never sends an email and never triggers notifications**.
 
 ## Requirements
 
-- Flarum 2.0 (`^2.0.0-rc.1`)
-- PHP 8.3+
+- Flarum 1.8 (`^1.8`)
+- PHP 8.0+
 - An OpenAI API key (or a compatible endpoint)
 - **A working queue** — see below
 
 ## Installation
 
+The package is not on Packagist, and `composer require` only ever looks at
+Packagist — so Composer has to be pointed at the repository first. From the forum
+root:
+
 ```bash
-composer require pbiaut/flarum-ai-seeder
+composer config repositories.flarum-ai vcs https://github.com/PhilippeBiaut/flarum-ai.git
+```
+
+```bash
+composer require pbiaut/flarum-ai-seeder:dev-main
+```
+
+```bash
+php flarum migrate && php flarum cache:clear
 ```
 
 Then enable *AI Seeder* in the admin panel and open its page.
+
+Deploying through Ploi? [`deploy/ploi.sh`](deploy/ploi.sh) is the same thing,
+ready to paste into the site's *Deploy script* field.
 
 ## The queue (read this one)
 

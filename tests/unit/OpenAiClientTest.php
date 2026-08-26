@@ -6,7 +6,6 @@ use GuzzleHttp\Client as Guzzle;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
-use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Pbiaut\AiSeeder\OpenAI\Client;
 use Pbiaut\AiSeeder\OpenAI\OpenAiException;
@@ -47,7 +46,7 @@ class OpenAiClientTest extends TestCase
         ]));
     }
 
-    #[Test]
+    /** @test */
     public function it_parses_a_json_completion_and_records_usage(): void
     {
         $client = $this->client([$this->completion('{"members":[{"username":"ada"}]}', 120, 340)]);
@@ -58,7 +57,7 @@ class OpenAiClientTest extends TestCase
         $this->assertSame(['tokens_in' => 120, 'tokens_out' => 340, 'calls' => 1], $client->usage());
     }
 
-    #[Test]
+    /** @test */
     public function it_unwraps_a_markdown_code_fence(): void
     {
         $client = $this->client([$this->completion("```json\n{\"titles\":[\"hello\"]}\n```")]);
@@ -66,7 +65,7 @@ class OpenAiClientTest extends TestCase
         $this->assertSame(['hello'], $client->chatJson('system', 'user')['titles']);
     }
 
-    #[Test]
+    /** @test */
     public function it_retries_a_rate_limit_then_succeeds(): void
     {
         $client = $this->client([
@@ -77,7 +76,7 @@ class OpenAiClientTest extends TestCase
         $this->assertTrue($client->chatJson('system', 'user')['ok']);
     }
 
-    #[Test]
+    /** @test */
     public function it_gives_up_on_a_rate_limit_that_never_clears(): void
     {
         $client = $this->client([
@@ -94,7 +93,7 @@ class OpenAiClientTest extends TestCase
         }
     }
 
-    #[Test]
+    /** @test */
     public function a_bad_key_is_not_retried(): void
     {
         // Only one response queued: a second attempt would blow up the mock.
@@ -110,7 +109,7 @@ class OpenAiClientTest extends TestCase
         }
     }
 
-    #[Test]
+    /** @test */
     public function it_drops_parameters_the_model_rejects_and_retries(): void
     {
         $client = $this->client([
@@ -122,7 +121,7 @@ class OpenAiClientTest extends TestCase
         $this->assertTrue($client->chatJson('system', 'user')['ok']);
     }
 
-    #[Test]
+    /** @test */
     public function invalid_json_is_reported_as_retryable(): void
     {
         $client = $this->client([$this->completion('this is not json at all')]);
@@ -136,7 +135,7 @@ class OpenAiClientTest extends TestCase
         }
     }
 
-    #[Test]
+    /** @test */
     public function it_lists_models_sorted(): void
     {
         $client = $this->client([

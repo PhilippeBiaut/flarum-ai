@@ -8,11 +8,11 @@ namespace Pbiaut\AiSeeder\Generator;
 final class GenerationContext
 {
     public function __construct(
-        public readonly string $forumTitle,
-        public readonly string $language,
-        public readonly string $theme,
-        public readonly string $tone,
-        public readonly string $audience,
+        public string $forumTitle,
+        public string $language,
+        public string $theme,
+        public string $tone,
+        public string $audience,
     ) {
     }
 

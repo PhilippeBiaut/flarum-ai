@@ -4,7 +4,7 @@
 # Replace the path on the first line with your own site directory.
 #
 # It is idempotent: the first deploy installs the extension, every later deploy
-# updates it. `composer config` simply rewrites the same entries each time.
+# updates it. `composer config` simply rewrites the same entry each time.
 
 cd /home/ploi/example.com
 
@@ -18,30 +18,20 @@ echo "🚀 Deploying..."
 
 composer config repositories.flarum-ai vcs https://github.com/PhilippeBiaut/flarum-ai.git
 
-# --- Release candidates ------------------------------------------------------
-#
-# The extension requires flarum/core ^2.0.0-rc.1, and an RC is not "stable".
-# With Composer's default setting it is found and then refused:
-# "does not match your minimum-stability".
-#
-# prefer-stable keeps every OTHER dependency on its stable release, so this
-# relaxation only applies where it is actually needed.
-#
-# Drop these two lines once Flarum 2.0 final is out.
-
-composer config minimum-stability RC
-composer config prefer-stable true
-
 # --- Install or update -------------------------------------------------------
-
-# No --no-dev here on purpose: `composer require` does not accept it (only
-# `--update-no-dev`), and this forum currently installs its dev dependencies.
-# A deploy should not quietly change that.
+#
+# The extension requires flarum/core ^1.8, so nothing needs to be relaxed:
+# no minimum-stability change, no forum upgrade. `dev-main` carries its own
+# stability flag, which Composer adds to composer.json automatically.
+#
+# No --no-dev here: `composer require` does not accept it (only
+# `--update-no-dev`), and this forum installs its dev dependencies today. A
+# deploy should not quietly change that.
 
 if composer show pbiaut/flarum-ai-seeder > /dev/null 2>&1; then
     composer update pbiaut/flarum-ai-seeder --no-interaction --prefer-dist --optimize-autoloader
 else
-    composer require pbiaut/flarum-ai-seeder:dev-main -W --no-interaction --prefer-dist --optimize-autoloader
+    composer require pbiaut/flarum-ai-seeder:dev-main --no-interaction --prefer-dist --optimize-autoloader
 fi
 
 # --- Flarum ------------------------------------------------------------------

@@ -12,7 +12,7 @@ use Pbiaut\AiSeeder\Service\RevertRunner;
  */
 class RevertBatchJob extends AbstractJob
 {
-    public function __construct(public readonly int $batchId)
+    public function __construct(public int $batchId)
     {
         parent::__construct();
     }

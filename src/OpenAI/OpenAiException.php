@@ -9,8 +9,8 @@ class OpenAiException extends RuntimeException
 {
     public function __construct(
         string $message,
-        public readonly int $status = 0,
-        public readonly bool $retryable = false,
+        public int $status = 0,
+        public bool $retryable = false,
         ?Throwable $previous = null,
     ) {
         parent::__construct($message, $status, $previous);

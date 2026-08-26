@@ -32,9 +32,9 @@ final class PlanResult
     public array $warnings = [];
 
     public function __construct(
-        public readonly int $seed,
-        public readonly DateTimeImmutable $dateStart,
-        public readonly DateTimeImmutable $dateEnd,
+        public int $seed,
+        public DateTimeImmutable $dateStart,
+        public DateTimeImmutable $dateEnd,
     ) {
     }
 

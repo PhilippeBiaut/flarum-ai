@@ -9,24 +9,32 @@ use Flarum\User\User;
 /**
  * The one place that actually writes a comment row.
  *
- * Two details matter here:
- *  - content must go through setContentAttribute(), which runs Flarum's text
- *    formatter; writing raw Markdown into posts.content produces posts that
- *    render as escaped junk;
+ * Three details matter here:
+ *  - CommentPost::reply() runs the content through Flarum's text formatter;
+ *    writing raw Markdown into posts.content produces posts that render as
+ *    escaped junk;
+ *  - it stamps created_at with "now", so the backdating has to overwrite it
+ *    before the model is saved;
  *  - `number` must NOT be set: Post::boot() assigns it with a MAX(number)+1
  *    SQL expression, which is also what keeps it race-free.
+ *
+ * The Posted event it raises is never released (that is the command handler's
+ * job, and we bypass it), so no notifications go out for backdated content.
  */
 class PostWriter
 {
     public function write(int $discussionId, string $content, User $author, Carbon $createdAt): CommentPost
     {
-        $post = new CommentPost();
-        $post->discussion_id = $discussionId;
-        $post->user_id = $author->id;
+        $post = CommentPost::reply(
+            $discussionId,
+            $this->trim($content),
+            $author->id,
+            null,
+            $author
+        );
+
         $post->created_at = $createdAt;
-        $post->ip_address = null;
         $post->is_private = false;
-        $post->setContentAttribute($this->trim($content), $author);
 
         $post->save();
 
@@ -43,7 +51,7 @@ class PostWriter
             $content = '...';
         }
 
-        // Flarum's own limit is 63000 characters of raw text.
+        // Flarum's own limit is 65535 characters of raw text; stay well under.
         return mb_substr($content, 0, 60000);
     }
 }

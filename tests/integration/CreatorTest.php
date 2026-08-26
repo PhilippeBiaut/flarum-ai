@@ -7,7 +7,6 @@ use Flarum\Discussion\Discussion;
 use Flarum\Post\Post;
 use Flarum\Testing\integration\TestCase;
 use Flarum\User\User;
-use PHPUnit\Framework\Attributes\Test;
 use Pbiaut\AiSeeder\Creator\CounterRefresher;
 use Pbiaut\AiSeeder\Creator\DiscussionCreator;
 use Pbiaut\AiSeeder\Creator\ReplyCreator;
@@ -43,7 +42,7 @@ class CreatorTest extends TestCase
         );
     }
 
-    #[Test]
+    /** @test */
     public function a_generated_member_is_backdated_activated_and_silent(): void
     {
         $user = $this->member('ada_l', '2026-01-04 09:12:00');
@@ -58,7 +57,7 @@ class CreatorTest extends TestCase
         $this->assertSame(0, $this->database()->table('email_tokens')->count());
     }
 
-    #[Test]
+    /** @test */
     public function usernames_and_emails_never_collide(): void
     {
         $first = $this->member('ada_l', '2026-01-04 09:00:00');
@@ -68,7 +67,7 @@ class CreatorTest extends TestCase
         $this->assertNotSame($first->email, $second->email);
     }
 
-    #[Test]
+    /** @test */
     public function a_discussion_and_its_opening_post_carry_the_planned_date(): void
     {
         $author = $this->member('grace_h', '2026-01-02 08:00:00');
@@ -97,7 +96,7 @@ class CreatorTest extends TestCase
         $this->assertStringContainsString('Every', $firstPost->content);
     }
 
-    #[Test]
+    /** @test */
     public function replies_are_numbered_in_order_and_update_the_discussion(): void
     {
         $author = $this->member('grace_h', '2026-01-02 08:00:00');
@@ -144,7 +143,7 @@ class CreatorTest extends TestCase
         $this->assertSame('2026-02-11 21:34:00', $discussion->created_at->format('Y-m-d H:i:s'));
     }
 
-    #[Test]
+    /** @test */
     public function member_counters_are_brought_back_in_line(): void
     {
         $author = $this->member('grace_h', '2026-01-02 08:00:00');

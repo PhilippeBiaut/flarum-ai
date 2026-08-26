@@ -10,11 +10,11 @@ use Pbiaut\AiSeeder\Service\SeederSettings;
 /**
  * Creates a member directly on the model, on purpose.
  *
- * Flarum 2.0 has no User::register() any more, and going through the API
- * resource would run validation, throttling and — more importantly — release
- * the Registered event, which sends welcome / confirmation mail. Seeding a
- * hundred members must not send a hundred emails, so we build the model, save
- * it, and let the raised events die unreleased.
+ * User::register() raises the Registered event but never dispatches it - that
+ * is the job of the command handler we deliberately bypass. Going through
+ * RegisterUser instead would run validation, throttling and, more importantly,
+ * release that event, which sends welcome and confirmation mail. Seeding a
+ * hundred members must not send a hundred emails.
  */
 class UserCreator
 {
@@ -29,17 +29,17 @@ class UserCreator
     {
         $username = $this->uniqueUsername((string) ($persona['username'] ?? ''));
 
-        $user = new User();
-        $user->username = $username;
-        $user->email = $this->uniqueEmail($username);
-        $user->password = Str::random(32);
+        $user = User::register(
+            $username,
+            $this->uniqueEmail($username),
+            Str::random(32)
+        );
+
+        // register() stamps joined_at with "now"; overwrite it before saving so
+        // the member appears to have been around since their planned date.
+        $user->joined_at = Dates::toUtc($joinedAt);
         $user->is_email_confirmed = true;
 
-        // User::boot() stamps joined_at with "now" on creating, so the
-        // backdating has to happen on a second save.
-        $user->save();
-
-        $user->joined_at = Dates::toUtc($joinedAt);
         $user->save();
 
         return $user;
