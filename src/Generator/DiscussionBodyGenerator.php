@@ -31,7 +31,7 @@ class DiscussionBodyGenerator
         $system = $this->prompts->system(
             $context,
             'You write the opening post of a forum thread, staying strictly in the voice of the member described.',
-            true
+            PromptBuilder::BRIEF
         );
 
         $user = implode("\n", array_filter([

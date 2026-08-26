@@ -44,7 +44,7 @@ class TagClassifier
         $system = $this->prompts->system(
             $context,
             'You sort existing forum threads into the categories this forum uses.',
-            true
+            PromptBuilder::BRIEF
         );
 
         $threads = [];

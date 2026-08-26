@@ -352,6 +352,7 @@ class BatchService
                     'payload' => json_encode([
                         'words' => $reply['words'],
                         'length' => $reply['length'],
+                        'replies_to' => $reply['replies_to'],
                     ]),
                     'status' => Item::STATUS_PENDING,
                 ];

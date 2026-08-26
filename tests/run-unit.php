@@ -33,6 +33,7 @@ use Pbiaut\AiSeeder\Planner\InvalidConfigException;
 use Pbiaut\AiSeeder\Planner\PlanConfig;
 use Pbiaut\AiSeeder\Planner\PlanResult;
 use Pbiaut\AiSeeder\Planner\ReplyLength;
+use Pbiaut\AiSeeder\Planner\ReplyTarget;
 use Pbiaut\AiSeeder\Planner\Rng;
 use Pbiaut\AiSeeder\Planner\SchedulePlanner;
 
@@ -453,6 +454,60 @@ $t->test('every reply gets its own target length, mostly short', function (Runne
     $long = ($buckets['long'] ?? 0) + ($buckets['very_long'] ?? 0);
 
     $t->ok($short > $long, 'short replies outnumber long ones, as on a real forum');
+});
+
+$t->test('replies point at a message that exists before them', function (Runner $t): void {
+    $plan = (new SchedulePlanner())->plan(config(['discussions' => 60, 'replies' => 700]));
+
+    $missing = 0;
+    $impossible = 0;
+    $toOpeningPost = 0;
+    $toAnotherReply = 0;
+
+    foreach ($plan->discussions as $discussion) {
+        foreach (array_values($discussion['replies']) as $position => $reply) {
+            if (! array_key_exists('replies_to', $reply)) {
+                $missing++;
+                continue;
+            }
+
+            $target = $reply['replies_to'];
+
+            // 0 is the opening post; anything else must already have been
+            // written by the time this reply is posted.
+            if ($target < 0 || $target > $position) {
+                $impossible++;
+            }
+
+            $target === 0 ? $toOpeningPost++ : $toAnotherReply++;
+        }
+    }
+
+    $t->same(0, $missing, 'every reply says which message it answers');
+    $t->same(0, $impossible, 'no reply answers a message that does not exist yet');
+    $t->ok($toAnotherReply > 0, 'some replies answer another member rather than the opening post');
+    $t->ok($toOpeningPost > $toAnotherReply, 'but the opening post still gets most of the answers');
+});
+
+$t->test('the first reply of a thread can only answer the opening post', function (Runner $t): void {
+    $rng = new Rng(7);
+
+    for ($i = 0; $i < 50; $i++) {
+        $t->ok(ReplyTarget::draw(0, $rng) === 0, 'position 0 always targets the opening post');
+    }
+
+    // Later positions stay inside the thread.
+    $outside = 0;
+
+    for ($position = 1; $position < 40; $position++) {
+        $target = ReplyTarget::draw($position, $rng);
+
+        if ($target < 0 || $target > $position) {
+            $outside++;
+        }
+    }
+
+    $t->same(0, $outside, 'a target never points past the reply doing the answering');
 });
 
 $t->test('reply lengths are reproducible and expressed as a range', function (Runner $t): void {

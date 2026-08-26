@@ -374,11 +374,15 @@ class BatchRunner
         $personas = [];
         $authors = [];
         $lengths = [];
+        $targets = [];
 
         foreach ($items as $item) {
             $personas[] = $this->personaOf($item);
             $authors[] = $this->authorOf($item);
             $lengths[] = (int) $item->get('words', 90);
+            // Which message of the thread this reply answers, decided at
+            // planning time. 0 is the opening post.
+            $targets[] = (int) $item->get('replies_to', 0);
         }
 
         try {
@@ -390,7 +394,8 @@ class BatchRunner
                 $context,
                 $this->writtenReplies($batch, $parent),
                 $model,
-                $lengths
+                $lengths,
+                $targets
             );
         } catch (OpenAiException $e) {
             $this->penalise($items, $e);

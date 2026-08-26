@@ -8,28 +8,40 @@ namespace Pbiaut\AiSeeder\Generator;
  */
 class PromptBuilder
 {
+    /** The whole brief: for deciding who the members are and what they discuss. */
+    public const FULL = 'full';
+
+    /** One line of theme: enough to keep a single post on topic. */
+    public const BRIEF = 'brief';
+
     /**
-     * @param  bool  $brief  send a one-line theme instead of the whole brief.
-     *                       Used for the prompts that run once per post: the
-     *                       full brief there costs tokens on every call and
-     *                       nudges the model into restating it.
+     * No forum context at all. Used for replies, whose only subject matter is
+     * the thread itself: sending the forum's brief there adds nothing to a
+     * conversation the model can already read, costs tokens on every call, and
+     * pulls answers back towards generic topic talk instead of the question
+     * actually asked.
      */
-    public function system(GenerationContext $context, string $role, bool $brief = false): string
+    public const NONE = 'none';
+
+    /**
+     * @param  string  $detail  one of FULL, BRIEF or NONE
+     */
+    public function system(GenerationContext $context, string $role, string $detail = self::FULL): string
     {
-        $lines = [
-            $role,
-            '',
-            'Forum: '.$context->forumTitle,
-        ];
+        $lines = [$role, ''];
 
-        $theme = $brief ? $context->shortTheme() : $context->theme;
+        if ($detail !== self::NONE) {
+            $lines[] = 'Forum: '.$context->forumTitle;
 
-        if ($theme !== '') {
-            $lines[] = 'What the forum is about: '.$theme;
-        }
+            $theme = $detail === self::BRIEF ? $context->shortTheme() : $context->theme;
 
-        if (! $brief && $context->audience !== '') {
-            $lines[] = 'Who posts there: '.$context->audience;
+            if ($theme !== '') {
+                $lines[] = 'What the forum is about: '.$theme;
+            }
+
+            if ($detail === self::FULL && $context->audience !== '') {
+                $lines[] = 'Who posts there: '.$context->audience;
+            }
         }
 
         if ($context->tone !== '') {

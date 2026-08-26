@@ -291,12 +291,15 @@ class SchedulePlanner
             }
 
             $length = ReplyLength::draw($rng);
+            $position = count($replies);
 
             $replies[] = [
                 'author' => $author,
                 'created_at' => $time,
                 'words' => $length['words'],
                 'length' => $length['bucket'],
+                // 0 is the opening post, 1 the first reply, and so on.
+                'replies_to' => ReplyTarget::draw($position, $rng),
             ];
             $previous = $author;
         }
