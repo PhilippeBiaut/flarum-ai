@@ -936,6 +936,30 @@ $t->test('every locale value is quoted, and the catalogues match', function (Run
     $t->same([], array_slice($missingEn, 0, 5), 'nothing is missing from en.yml');
 });
 
+$t->test('title similarity catches the duplicates a real run produced', function (Runner $t): void {
+    $normalise = fn (string $s) => Pbiaut\AiSeeder\Generator\ReplyQuality::normalise($s);
+    $similarity = fn (string $a, string $b) => Pbiaut\AiSeeder\Generator\ReplyQuality::similarity($normalise($a), $normalise($b));
+
+    // Taken verbatim from a 501-discussion run: these reached the forum.
+    $t->ok(
+        $similarity('chien qui mange plus ses croquettes', 'chien qui mange plus ses croquettes') >= 0.55,
+        'an exact repeat is caught'
+    );
+    $t->ok(
+        $similarity('ras-le-bol des accusations de racisme', 'ras le bol des accusations au boulot') >= 0.55,
+        'a reworded repeat is caught'
+    );
+
+    // And these are genuinely different threads that must survive.
+    foreach ([
+        ['chien qui mange plus ses croquettes', 'chien qui refuse de sortir le matin'],
+        ['zemmour 2027, ça avance ou pas ?', 'vote utile ou conviction en 2027 ?'],
+        ['bspce et départ du cto, ça bloque ?', 'j’ai reçu mes bspce enfin'],
+    ] as [$a, $b]) {
+        $t->ok($similarity($a, $b) < 0.55, "kept apart: \"$a\" vs \"$b\"");
+    }
+});
+
 $t->test('Rng is reproducible and bounded', function (Runner $t): void {
     $a = new Rng(99);
     $b = new Rng(99);

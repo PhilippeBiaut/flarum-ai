@@ -16,6 +16,7 @@ use Pbiaut\AiSeeder\Creator\UserCreator;
 use Pbiaut\AiSeeder\Generator\DiscussionBodyGenerator;
 use Pbiaut\AiSeeder\Generator\GenerationContext;
 use Pbiaut\AiSeeder\Generator\PersonaGenerator;
+use Pbiaut\AiSeeder\Generator\ReplyQuality;
 use Pbiaut\AiSeeder\Generator\ReplyBundleGenerator;
 use Pbiaut\AiSeeder\Generator\TopicGenerator;
 use Pbiaut\AiSeeder\Generator\VoiceQuirks;
@@ -253,14 +254,82 @@ class BatchRunner
             return 1;
         }
 
+        // The prompt only ever sees a window of previous titles, so at a few
+        // hundred discussions it starts repeating ones that scrolled out of it.
+        // Checked here against every title in the batch instead.
+        $taken = $this->titleKeys($batch);
+        $named = 0;
+        $duplicates = 0;
+
         foreach ($items as $index => $item) {
-            $item->mergePayload(['title' => $titles[$index] ?? 'Untitled discussion']);
+            $title = $titles[$index] ?? null;
+
+            if ($title === null || trim($title) === '') {
+                continue;
+            }
+
+            $attempts = (int) $item->get('title_attempts', 0);
+
+            if ($attempts < 3 && $this->isDuplicateTitle($title, $taken)) {
+                // Left unnamed so the next pass tries again, this time with the
+                // colliding title inside the prompt's window. Bounded, because
+                // a forum genuinely does carry near-identical threads and we
+                // must not loop forever chasing perfection.
+                $item->mergePayload(['title_attempts' => $attempts + 1]);
+                $item->save();
+                $duplicates++;
+                continue;
+            }
+
+            $taken[] = ReplyQuality::normalise($title);
+
+            $item->mergePayload(['title' => $title]);
             $item->save();
+            $named++;
         }
 
-        $log('Named '.$items->count().' discussion(s).');
+        $log('Named '.$named.' discussion(s)'
+            .($duplicates > 0 ? ', '.$duplicates.' rejected as duplicate titles' : '').'.');
 
         return 1;
+    }
+
+    /**
+     * Every title already used in this batch, normalised for comparison.
+     *
+     * @return array<int, string>
+     */
+    protected function titleKeys(Batch $batch): array
+    {
+        return $batch->items()
+            ->where('type', Item::TYPE_DISCUSSION)
+            ->where('payload', 'like', '%"title":%')
+            ->get()
+            ->map(fn (Item $item) => ReplyQuality::normalise((string) $item->get('title', '')))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, string>  $taken  normalised titles already used
+     */
+    protected function isDuplicateTitle(string $title, array $taken): bool
+    {
+        $key = ReplyQuality::normalise($title);
+
+        foreach ($taken as $existing) {
+            // 0.55, measured against titles a real 501-discussion run produced:
+            // "ras le bol des accusations de racisme" scores 0.556 against
+            // "ras le bol des accusations au boulot", while two genuinely
+            // different threads on one subject stay under 0.2 - and a real forum
+            // does carry those.
+            if (ReplyQuality::similarity($key, $existing) >= 0.55) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** One call per opening post, then the discussion is created. */
