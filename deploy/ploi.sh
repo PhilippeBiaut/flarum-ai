@@ -33,6 +33,18 @@ fi
 php flarum migrate
 php flarum cache:clear
 
+# Reload PHP-FPM, or nothing above is visible to the web request.
+#
+# OPcache keeps vendor/composer/autoload_static.php compiled in FPM's memory.
+# After installing a new package the CLI sees the fresh autoloader while FPM
+# still serves the old one, which surfaces as
+# "Class Pbiaut\AiSeeder\... does not exist" on every page load, no matter how
+# many times you dump-autoload or clear Flarum's cache.
+#
+# Match the version to the site's PHP.
+
+echo "" | sudo -S service php8.4-fpm reload
+
 # Generation runs as background jobs: a `php flarum queue:work` daemon must be
 # running, and restarted here after a deploy. Get its id from Ploi -> Server ->
 # Daemons. Flarum has no queue:restart command, hence supervisor.
