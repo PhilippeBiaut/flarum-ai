@@ -28,23 +28,25 @@ class BatchPresenter
             'seed' => $batch->seed,
             'progress' => $batch->progress(),
             'planned' => [
-                'users' => $batch->users_planned,
-                'discussions' => $batch->discussions_planned,
-                'replies' => $batch->replies_planned,
+                'users' => (int) $batch->users_planned,
+                'discussions' => (int) $batch->discussions_planned,
+                'replies' => (int) $batch->replies_planned,
             ],
             'created' => [
-                'users' => $batch->users_created,
-                'discussions' => $batch->discussions_created,
-                'replies' => $batch->replies_created,
+                'users' => (int) $batch->users_created,
+                'discussions' => (int) $batch->discussions_created,
+                'replies' => (int) $batch->replies_created,
             ],
-            'failed' => $batch->failed_count,
+            'failed' => (int) $batch->failed_count,
             'pending' => $batch->items()->where('status', Item::STATUS_PENDING)->count(),
+            // Cast rather than trust: a batch presented straight after create()
+            // has never been read back from the database.
             'usage' => [
-                'tokens_in' => $batch->tokens_in,
-                'tokens_out' => $batch->tokens_out,
-                'api_calls' => $batch->api_calls,
+                'tokens_in' => (int) $batch->tokens_in,
+                'tokens_out' => (int) $batch->tokens_out,
+                'api_calls' => (int) $batch->api_calls,
             ],
-            'cost' => $this->estimator->actual($batch->tokens_in, $batch->tokens_out),
+            'cost' => $this->estimator->actual((int) $batch->tokens_in, (int) $batch->tokens_out),
             'error' => $batch->error,
             'period' => [
                 'start' => $batch->config['date_start'] ?? null,

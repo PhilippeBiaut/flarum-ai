@@ -58,9 +58,44 @@ class Batch extends AbstractModel
 
     protected $table = 'ai_seeder_batches';
 
+    /**
+     * A column default in the migration is applied by the database, not by
+     * Eloquent: a freshly saved model still holds null for every column the
+     * code never assigned, until it is refreshed. Reading a counter right after
+     * create() then hands null to something expecting an int.
+     *
+     * These defaults make a new Batch consistent in memory from the start.
+     */
+    protected $attributes = [
+        'status' => self::STATUS_PLANNED,
+        'mode' => self::MODE_GENERATE,
+        'seed' => 0,
+        'users_planned' => 0,
+        'discussions_planned' => 0,
+        'replies_planned' => 0,
+        'users_created' => 0,
+        'discussions_created' => 0,
+        'replies_created' => 0,
+        'failed_count' => 0,
+        'tokens_in' => 0,
+        'tokens_out' => 0,
+        'api_calls' => 0,
+    ];
+
     protected $casts = [
         'config' => 'array',
         'plan_summary' => 'array',
+        'seed' => 'integer',
+        'users_planned' => 'integer',
+        'discussions_planned' => 'integer',
+        'replies_planned' => 'integer',
+        'users_created' => 'integer',
+        'discussions_created' => 'integer',
+        'replies_created' => 'integer',
+        'failed_count' => 'integer',
+        'tokens_in' => 'integer',
+        'tokens_out' => 'integer',
+        'api_calls' => 'integer',
         'created_at' => 'datetime',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',

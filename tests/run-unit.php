@@ -820,6 +820,67 @@ $t->test('some members stop coming, and never post afterwards', function (Runner
     );
 });
 
+// --------------------------------------------------------------------- models
+
+$t->test('every defaulted column has a matching model default', function (Runner $t): void {
+    // A `->default(0)` in a migration is applied by the database. Eloquent does
+    // not know about it, so a freshly saved model holds null for every column
+    // the code never assigned - and null reaches whatever reads it next.
+    // Declaring the same defaults in the model is what keeps a new instance
+    // consistent in memory. Checked as text so this runs without Flarum.
+    $pairs = [
+        'ai_seeder_batches' => 'src/Model/Batch.php',
+        'ai_seeder_items' => 'src/Model/Item.php',
+    ];
+
+    foreach ($pairs as $table => $modelPath) {
+        $columns = [];
+
+        foreach (glob(__DIR__.'/../migrations/*.php') as $migration) {
+            $source = file_get_contents($migration);
+
+            // Only migrations that create or alter this table. Merely naming it
+            // is not enough: the other tables reference it in a foreign key,
+            // and their columns would leak into the comparison.
+            $touches = str_contains($source, "createTable('".$table."'")
+                || str_contains($source, "addColumns('".$table."'");
+
+            if (! $touches) {
+                continue;
+            }
+
+            // ->integer('name')...->default(0)  /  'name' => ['string', ... 'default' => x]
+            preg_match_all(
+                "/(?:unsignedInteger|unsignedSmallInteger|unsignedBigInteger|integer|string|boolean)\('([a-z_]+)'[^;]*?->default\(/s",
+                $source,
+                $chained
+            );
+            preg_match_all("/'([a-z_]+)'\s*=>\s*\[[^\]]*'default'\s*=>/s", $source, $arrayForm);
+
+            $columns = array_merge($columns, $chained[1], $arrayForm[1]);
+        }
+
+        $columns = array_values(array_unique($columns));
+        $t->ok($columns !== [], "$table declares defaulted columns");
+
+        $model = file_get_contents(__DIR__.'/../'.$modelPath);
+        $start = strpos($model, 'protected $attributes');
+        $t->ok($start !== false, basename($modelPath).' declares $attributes');
+
+        $declared = [];
+
+        if ($start !== false) {
+            $block = substr($model, $start, strpos($model, '];', $start) - $start);
+            preg_match_all("/'([a-z_]+)'\s*=>/", $block, $matches);
+            $declared = $matches[1];
+        }
+
+        $missing = array_values(array_diff($columns, $declared));
+
+        $t->same([], $missing, basename($modelPath).' defaults every column the migration defaults');
+    }
+});
+
 // --------------------------------------------------------------------- locale
 
 $t->test('every locale value is quoted, and the catalogues match', function (Runner $t): void {

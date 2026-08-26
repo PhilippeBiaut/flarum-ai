@@ -52,8 +52,17 @@ class Item extends AbstractModel
 
     protected $table = 'ai_seeder_items';
 
+    /** Same reasoning as Batch: column defaults live in the database, not here. */
+    protected $attributes = [
+        'status' => self::STATUS_PENDING,
+        'position' => 0,
+        'attempts' => 0,
+    ];
+
     protected $casts = [
         'payload' => 'array',
+        'position' => 'integer',
+        'attempts' => 'integer',
         'scheduled_at' => 'datetime',
     ];
 
